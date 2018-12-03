@@ -1,0 +1,301 @@
+#!/usr/bin/python3
+import argparse
+import datetime
+import itertools
+import pathlib
+import re
+import subprocess
+import sys
+
+def mkElfinfoRegexp():
+    bits = ['32', '64']
+    endian = ['LSB', 'MSB']
+    osabi = ['GNU/Linux', 'SYSV']
+
+    elftype = ['executable', 'relocatable', 'shared object']
+    machine = [
+        'ARM aarch64,',
+        'ARM, EABI4',
+        'ARM, EABI5',
+        'Intel 80386,',
+        'MAX Processor,',
+        'MIPS, MIPS-I',
+        'MIPS, MIPS-II',
+        'MIPS, MIPS32',
+        'MIPS, MIPS32 rel2',
+        'PowerPC or cisco 4500,',
+        'STMicroelectronics ST200,',
+        'STMicroelectronics STxP7x family,',
+        'Tilera TILE-Gx,',
+        'eXcess: 16/32/64-bit,',
+        'x86-64,'
+    ]
+    linkage = ['dynamically linked', 'statically linked']
+    interpreter = [
+        '/lib/ld-linux-aarch64.so.1',
+        '/lib/ld-linux-armhf.so.3',
+        '/lib/ld-linux-x86-64.so.2',
+        '/lib/ld-linux.so.2',
+        '/lib/ld-linux.so.3',
+        '/lib/ld-uClibc.so.0',
+        '/lib/ld.so.1',
+        '/lib32/ld-linux.so.2',
+        '/lib32/ld-linux.so.3',
+        '/lib32/ld.so.1',
+        '/lib64/ld-linux-x86-64.so.2',
+        'RL_LIB',
+        '\\\\004',
+        'ld-uClibc.so.0',
+    ]
+    osversion = [
+        'GNU/Linux 2.4.3',
+        'GNU/Linux 2.6.10',
+        'GNU/Linux 2.6.14',
+        'GNU/Linux 2.6.15',
+        'GNU/Linux 2.6.16',
+        'GNU/Linux 2.6.23',
+        'GNU/Linux 2.6.32',
+        'GNU/Linux 3.2.40',
+        'GNU/Linux 3.4.35',
+        'GNU/Linux 3.7.0',
+    ]
+    buildid_hashf = ['sha1']
+    stripped = [
+        'stripped',
+        'not stripped',
+        'corrupted section header size',
+    ]
+
+    subpatterns = dict()
+    subpatterns['bits']          = '(?P<bits>{})-bit'.format('|'.join(bits))
+    subpatterns['endian']        = '(?P<endian>{})'.format('|'.join(endian))
+    subpatterns['osabi']         = '(?P<osabi>{})'.format('|'.join(osabi))
+    subpatterns['abiversion']    = 'version (?P<abiversion>{})'.format('\d+')
+    subpatterns['elftype']       = '(?P<elftype>{})'.format('|'.join(elftype))
+    subpatterns['machine']       = '(?P<machine>{})'.format('|'.join(machine))
+    subpatterns['linkage']       = '(?P<linkage>{})'.format('|'.join(linkage))
+    subpatterns['interpreter']   = 'interpreter (?P<interpreter>{})'.format('|'.join(interpreter))
+    subpatterns['osversion']     = 'for (?P<osversion>{})'.format('|'.join(osversion))
+    subpatterns['buildid_hashf'] = '(?P<buildid_hashf>{})'.format('|'.join(buildid_hashf))
+    subpatterns['buildid_hash']  = '(?P<buildid_hash>{})'.format('[0-9a-f]+')
+    subpatterns['stripped']      = '(?P<stripped>{})'.format('|'.join(stripped))
+
+    subpatterns['buildid'] = 'BuildID\[{buildid_hashf}\]={buildid_hash}'.format(**subpatterns)
+
+    pattern = '^ELF {bits} {endian} {elftype}, {machine} {abiversion}(?: \({osabi}\))?' \
+              '(?:, (?:{buildid}|{linkage}|{osversion}|{interpreter}))*, {stripped}$' \
+                  .format(**subpatterns)
+
+    return re.compile(pattern)
+
+RE_MD5 = re.compile('^(?P<hash>[0-9a-f]{32}) (?: |\\*)')
+RE_SHA1 = re.compile('^(?P<hash>[0-9a-f]{40}) (?: |\\*)')
+RE_FILE = re.compile('^(?P<output>.*)$')
+RE_FILE_ELF = re.compile('^(?P<output>\\bELF\\b.*)$')
+RE_FILE_ELFINFO = mkElfinfoRegexp()
+
+def listFile(filePath, args):
+    if filePath.is_symlink():
+        # print("symlink path `{}' ignored".format(filePath), file=sys.stderr)
+        return ()
+    if filePath.is_dir():
+        return itertools.chain.from_iterable(map(
+            lambda filePath: listFile(filePath, args),
+            filePath.iterdir()))
+    if not filePath.is_file():
+        print("path `{}' is not a regular file or a directory".format(filePath), file=sys.stderr)
+        return ()
+
+    d = {}
+
+    if args.file or args.elf:
+        output = subprocess.check_output(['file', '--brief', str(filePath)]).decode()
+        m = RE_FILE.match(output)
+        if not m:
+            print("file utility match failed, output=`{}'".format(output), file=sys.stderr)
+            return ()
+
+        if args.file:
+            d.update({'file/output': m.group('output')})
+
+        if args.elf:
+            m = RE_FILE_ELF.match(m.group('output'))
+            if not m:
+                # print("ignoring `{}' which is not an ELF file".format(filePath), file=sys.stderr)
+                return ()
+
+            m = RE_FILE_ELFINFO.match(m.group('output'))
+            if not m:
+                print("ELF info matching failed, output=`{}'".format(output), file=sys.stderr)
+                return ()
+
+            d.update({'elf/type': m.group('elftype'),
+                      'elf/bits': m.group('bits'),
+                      'elf/endian': m.group('endian'),
+                      'elf/osabi': m.group('osabi') or 'NULL',
+                      'elf/osversion': m.group('osversion') or 'NULL',
+                      'elf/abiversion': m.group('abiversion'),
+                      'elf/machine': m.group('machine'),
+                      'elf/linkage': m.group('linkage') or 'NULL',
+                      'elf/interpreter': m.group('interpreter') or 'NULL',
+                      'elf/buildid_hashf': m.group('buildid_hashf') or 'NULL',
+                      'elf/buildid_hash': m.group('buildid_hash') or 'NULL',
+                      'elf/stripped': m.group('stripped')})
+
+    if args.fs:
+        stat = filePath.stat()
+        size, mtime = stat.st_size, stat.st_mtime
+        timestampUtc = datetime.datetime.utcfromtimestamp(mtime).strftime('%FT%T.%fZ')
+
+        d.update({'fs/name': filePath.name,
+                  'fs/dirname': filePath.parent,
+                  'fs/fullname': filePath,
+                  'fs/size': size,
+                  'fs/mtime': mtime,
+                  'fs/timestamp-utc': timestampUtc})
+
+    if args.md5:
+        output = subprocess.check_output(['md5sum', '--binary', str(filePath)]).decode()
+        m = RE_MD5.match(output)
+        if not m:
+            print("md5 hash matching failed, output=`{}'".format(output))
+            return ()
+
+        d.update({'md5/hash': m.group('hash')})
+
+    if args.sha1:
+        output = subprocess.check_output(['sha1sum', '--binary', str(filePath)]).decode()
+        m = RE_SHA1.match(output)
+        if not m:
+            print("sha1 hash matching failed, output=`{}'".format(output))
+            return ()
+
+        d.update({'sha1/hash': m.group('hash')})
+
+    return (d,)
+
+def listFilesystem(filesystemPath, args):
+    if filesystemPath.is_symlink() or filesystemPath.is_file():
+        # print("filesystem path `{}' ignored".format(filesystemPath), file=sys.stderr)
+        return ()
+    if not filesystemPath.is_dir():
+        print("filesystem path `{}' is not a directory".format(filesystemPath), file=sys.stderr)
+        return ()
+
+    if filesystemPath.name == 'filesystem':
+        result = listFile(filesystemPath, args)
+
+        if args.firmware:
+            def updateFirmware(d):
+                d.update({'firmware/filesystem': filesystemPath})
+                return d
+            result = map(updateFirmware, result)
+
+        return result
+
+    return itertools.chain.from_iterable(map(
+        lambda filePath: listFilesystem(filePath, args),
+        filesystemPath.iterdir()))
+
+def listFirmware(firmwarePath, args):
+    result = listFilesystem(firmwarePath, args)
+
+    if args.firmware:
+        def updateFirmware(d):
+            d.update({'firmware/name': firmwarePath.name,
+                      'firmware/path': firmwarePath})
+            return d
+        result = map(updateFirmware, result)
+
+    return result
+
+def listVendor(vendorPath, args):
+    if not vendorPath.is_dir():
+        print("vendor path `{}' is not a directory".format(vendorPath))
+        return ()
+
+    result = itertools.chain.from_iterable(map(
+        lambda firmwarePath: listFirmware(firmwarePath, args),
+        vendorPath.iterdir()))
+
+    if args.vendor:
+        def updateVendor(d):
+            d.update({'vendor/name': vendorPath.name,
+                      'vendor/path': vendorPath})
+            return d
+        result = map(updateVendor, result)
+
+    return result
+
+def listRoot(rootPath, args):
+    if not rootPath.is_dir():
+        print("root path `{}' is not a directory".format(rootPath), file=sys.stderr)
+        return ()
+
+    return itertools.chain.from_iterable(map(
+        lambda vendorPath: listVendor(vendorPath, args),
+        rootPath.iterdir()))
+
+def mkParserPrintFile(mkParser):
+    parser = mkParser('file', description='print information about a file or directory')
+    parser.set_defaults(listF=lambda args: listFile(pathlib.Path(args.path), args))
+    parser.add_argument('path', help='path to the file or directory')
+
+def mkParserPrintFirmware(mkParser):
+    parser = mkParser('firmware', description='print information about firmware')
+    parser.set_defaults(listF=lambda args: listFirmware(pathlib.Path(args.path), args))
+    parser.add_argument('path', help='path to the firmware root')
+
+def mkParserPrintVendor(mkParser):
+    parser = mkParser('vendor', description='print information about vendor firmware')
+    parser.set_defaults(listF=lambda args: listVendor(pathlib.Path(args.path), args))
+    parser.add_argument('path', help='path to the vendor root')
+
+def mkParserPrintRoot(mkParser):
+    parser = mkParser('root', description='print information about firmware database')
+    parser.set_defaults(listF=lambda args: listRoot(pathlib.Path(args.path), args))
+    parser.add_argument('path', help='path to the database root')
+
+def mkParserPrint(mkParser):
+    def handler(args):
+        try:
+            listF = args.listF
+        except AttributeError as e:
+            print('nothing to print! use one of the print subcommands, or -h for help')
+            sys.exit(-1)
+
+        for d in args.listF(args):
+            print(args.formatstr.format(**d))
+
+    parser = mkParser('print', description='print information about vendors/firmwares/elf files')
+    parser.set_defaults(handlerF=handler)
+
+    parser.add_argument('--firmware', action='store_true', help='load information about firmwares')
+    parser.add_argument('--vendor', action='store_true', help='load information about vendors')
+    parser.add_argument('--fs', action='store_true', help='load filesystem information about files')
+    parser.add_argument('--file', action='store_true', help="load information from the `file' utility")
+    parser.add_argument('--elf', action='store_true', help='load information about ELF files')
+    parser.add_argument('--md5', action='store_true', help='compute MD-5 hash of the files')
+    parser.add_argument('--sha1', action='store_true', help='compute SHA-1 hash of the files')
+
+    parser.add_argument('formatstr', help='format string to use for printing')
+
+    subparsers = parser.add_subparsers(help='the subaction to perform')
+    mkParserPrintRoot(subparsers.add_parser)
+    mkParserPrintVendor(subparsers.add_parser)
+    mkParserPrintFirmware(subparsers.add_parser)
+    mkParserPrintFile(subparsers.add_parser)
+
+parser = argparse.ArgumentParser(description='IoT firmware tool')
+subparsers = parser.add_subparsers()
+mkParserPrint(subparsers.add_parser)
+
+args = parser.parse_args()
+
+try:
+    handlerF = args.handlerF
+except AttributeError as e:
+    print('nothing to do! select an action (use -h for help)')
+    sys.exit(-1)
+
+handlerF(args)
