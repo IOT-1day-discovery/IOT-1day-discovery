@@ -14,6 +14,112 @@ git submodule init
 git submodule update
 ```
 
+## iotfw-tool
+`iotfw-tool` is the tool used to crawl and extract information about files in extracted firmware images. List of available actions with basic description can be obtained by running:
+```
+./iotfw-tool --help
+```
+
+### Example 1: Getting information about a file
+The most elementary action is printing information about a single file:
+```
+$ ./iotfw-tool print --fs --sha1 '{fs/dirname};{fs/name};{sha1/hash}' file /bin/true
+/bin;true;8b232f29aa114421ceccea5a46cb2e65140ca5e8
+```
+An example output is given above. The output is based on the format string `{fs/dirname};{fs/name};{sha1/hash}`, which is expanded with corresponding values for the given file. Note the `--fs` and `--sha1` switches - they make variables like `fs/dirname` and `sha1/hash` available for printing, list of accepted switches and corresponding variables can be found at the end of this section.
+
+### Example 2: Getting information about a directory
+This is a straigtforward extension of the previous example, simply pass a directory name instead of file name:
+```
+$ ./iotfw-tool print --fs --sha1 '{fs/dirname};{fs/name};{sha1/hash}' file /bin
+/bin;ping;f70403ca7536d64918264ebac831cde8314dcc58
+/bin;setfont;73f707873b3a5705acf453237c5cb3a5acd5e370
+/bin;bunzip2;78ad41c090546483c6f82d656fdd33d0e23c836e
+/bin;systemd-escape;f70e47253a0e9df75c8a06c1a0c299890378ac6e
+/bin;ntfsmove;161084c9613082e43993ba4055ba5965b4aa85ab
+```
+
+### Example 3: Getting information about firmware
+Assuming the extracted firmware is located in directory `/path/to/extracted/firmware`, run:
+```
+$ ./iotfw-tool print --firmware --fs --sha1 '{firmware/filesystem};{fs/firmware/dirname};{fs/name};{sha1/hash}' firmware /path/to/extracted/firmware
+/path/to/extracted/firmware/filesystem;/bin;check_default_by_start;34c783b222588f9529f829bb3ff49077b39799cd
+/path/to/extracted/firmware/filesystem;/bin;private.cgi;5dec74c3d6b9a5b08f0a808f63af16a7c64c5dd2
+/path/to/extracted/firmware/filesystem;/bin;auto_update;dc37ba3e96c14fdb35a67ce632a45d966b8b74ee
+/path/to/extracted/firmware/filesystem;/bin;usb_check;cbf0827de4be8f0882e4f8daf1238df293ec78e3
+/path/to/extracted/firmware/filesystem;/bin;igmpproxy;a1ca85e4f3c79d4d53da64c6873e2e26b358a156
+```
+
+### Example 4: Getting information about vendor firmwares
+Assuming the extracted vendor firmwares are located in directory `/path/to/vendor/firmwares`, run:
+```
+$ ./iotfw-tool print --vendor --firmware --fs --sha1 '{vendor/name};{firmware/name};{firmware/filesystem};{fs/firmware/dirname};{fs/name};{sha1/hash}' vendor /path/to/vendor/firmwares
+360;firmware1;/path/to/vendor/firmwares/firmware1/filesystem;/bin;private.cgi;4db6a1072cce2b9b7295af142f55cdedf4ca7ad4
+360;firmware1;/path/to/vendor/firmwares/firmware1/filesystem;/bin;auto_update;172ae20c49b20cc7317dedb907de28b0c5dd9dc5
+360;firmware1;/path/to/vendor/firmwares/firmware1/filesystem;/bin;cfeupdate;c58ded323cf44ce13c484c1d2980cfdfc519a15e
+360;firmware1;/path/to/vendor/firmwares/firmware1/filesystem;/bin;flash_load_default;150efe995c3e8b068fe094ce03c8219b1ec5269c
+360;firmware1;/path/to/vendor/firmwares/firmware1/filesystem;/bin;detect_dns;60574521947631797c13308bf073f0a5fb4398bd
+```
+
+### Example 5: Getting information about all vendors' firmwares
+Assuming the vendor directories are located in directory `/path/to/vendors`, run:
+```
+$ ./iotfw-tool print --vendor --firmware --fs --sha1 '{vendor/name};{firmware/name};{firmware/filesystem};{fs/firmware/dirname};{fs/name};{sha1/hash}' vendors /path/to/vendors
+phicomm;firmware2;/path/to/vendors/phicomm/firmware2/_40.extracted/_503000.extracted/filesystem;/bin;igmpproxy;cbf98cb9d72966833cd8e646ca9d18ec37f3cc3f
+phicomm;firmware2;/path/to/vendors/phicomm/firmware2/_40.extracted/_503000.extracted/filesystem;/bin;arptables;5cf7dfa8d35d776be294b258e1ef9794e3978a55
+phicomm;firmware2;/path/to/vendors/phicomm/firmware2/_40.extracted/_503000.extracted/filesystem;/bin;openssl;9c81c236a6ebc7a8b37d31a76cb67732f7dffe6c
+phicomm;firmware2;/path/to/vendors/phicomm/firmware2/_40.extracted/_503000.extracted/filesystem;/bin;guest_control;65a51e951eb0b5186fe1e49bc12afbd331114f17
+phicomm;firmware2;/path/to/vendors/phicomm/firmware2/_40.extracted/_503000.extracted/filesystem;/bin;internet_check;d58b7b77cde024b0215e18b60b278f64994b82d2
+```
+
+### Example 6: Getting information in a format compatible with FindUniquePackages tool
+Assuming the vendor directories are located in directory `/path/to/vendors`, run:
+```
+$ ./iotfw-tool print --vendor --fs --firmware --sha1 --elf '{fs/fullname};{elf/machine};{elf/buildid/hashf};{elf/linkage};{elf/osversion};{elf/stripped};{elf/type};{elf/buildid/hash};{elf/interpreter};{elf/abiversion};{elf/osabi};{elf/endian};{elf/bits};{sha1/hash}' vendors /path/to/vendors
+/path/to/vendors/phicomm/_a3fb4b07ee14405adf227890a86f40abc8b4c5dd.bin.extracted/_40.extracted/_503000.extracted/filesystem/bin/igmpproxy;MIPS, MIPS-II;NULL;dynamically linked;NULL;stripped;executable;NULL;/lib/ld-uClibc.so.0;1;SYSV;LSB;32;cbf98cb9d72966833cd8e646ca9d18ec37f3cc3f
+/path/to/vendors/phicomm/_a3fb4b07ee14405adf227890a86f40abc8b4c5dd.bin.extracted/_40.extracted/_503000.extracted/filesystem/bin/arptables;MIPS, MIPS-II;NULL;dynamically linked;NULL;stripped;executable;NULL;/lib/ld-uClibc.so.0;1;SYSV;LSB;32;5cf7dfa8d35d776be294b258e1ef9794e3978a55
+/path/to/vendors/phicomm/_a3fb4b07ee14405adf227890a86f40abc8b4c5dd.bin.extracted/_40.extracted/_503000.extracted/filesystem/bin/openssl;MIPS, MIPS-II;NULL;dynamically linked;NULL;stripped;executable;NULL;/lib/ld-uClibc.so.0;1;SYSV;LSB;32;9c81c236a6ebc7a8b37d31a76cb67732f7dffe6c
+/path/to/vendors/phicomm/_a3fb4b07ee14405adf227890a86f40abc8b4c5dd.bin.extracted/_40.extracted/_503000.extracted/filesystem/bin/guest_control;MIPS, MIPS-II;NULL;dynamically linked;NULL;stripped;executable;NULL;/lib/ld-uClibc.so.0;1;SYSV;LSB;32;65a51e951eb0b5186fe1e49bc12afbd331114f17
+/path/to/vendors/phicomm/_a3fb4b07ee14405adf227890a86f40abc8b4c5dd.bin.extracted/_40.extracted/_503000.extracted/filesystem/bin/internet_check;MIPS, MIPS-II;NULL;dynamically linked;NULL;stripped;executable;NULL;/lib/ld-uClibc.so.0;1;SYSV;LSB;32;d58b7b77cde024b0215e18b60b278f64994b82d2
+```
+
+### List of available switches and format variables
+* `--vendor` Vendor information
+  * `{vendor/name}` Name of the firmware vendor.
+  * `{vendor/path}` Path to the vendor directory.
+* `--firmware` Firmware information
+  * `{firmware/name}` Name of the firmware image.
+  * `{firmware/path}` Path to the firmware directory.
+  * `{firmware/filesystem}` Path to the root of the firmware's filesystem.
+* `--fs` Filesystem-supplied information about a file.
+  * `{fs/name}` Filename of the file (without the directory component).
+  * `{fs/dirname}` Directory the file resides in.
+  * `{fs/fullname}` Full name of the file (both directory and filename components).
+  * `{fs/size}` Size of the file.
+  * `{fs/mtime}` Last modification time in Unix timestamp format.
+  * `{fs/timestamp-utc}` Last modification time in UTC datetime format (`2015-03-14T15:47:04.000000Z`).
+  * `{fs/firmware/dirname}` Directory the file resides in, assuming `{firmware/filesystem}` is the filesystem root.
+  * `{fs/firmware/fullname}` Full name of the file (both directory and filename components), assuming `{firmware/filesystem}` is the filesystem root.
+* `--file` Information given by the `file` utility
+  * `{file/output}` Output of the `file` utility when run on the file.
+* `--elf` Information about ELF files (**Note: non-ELF files are silently ignored with this switch.**)
+  * `{elf/type}` Type of the ELF file (executable, relocatable, shared object).
+  * `{elf/bits}` Bitness of the ELF file.
+  * `{elf/endian}` Endianness of the ELF file.
+  * `{elf/osabi}` Compatible OS ABI (GNU/Linux, SYSV), optional.
+  * `{elf/osversion}` OS (kernel) version, optional.
+  * `{elf/abiversion}` Compatible ABI version.
+  * `{elf/machine}` Compatible machine architecture.
+  * `{elf/linkage}` Linkage type (static, dynamic), optional.
+  * `{elf/interpreter}` Interpreter filename, optional.
+  * `{elf/buildid/hash}` BuildID hash, optional.
+  * `{elf/buildid/hashf}` BuildID hash function (e.g. SHA1), optional.
+  * `{elf/stripped}` Either `stripped` or `not stripped`.
+* `--md5` MD5 information about the file
+  * `{md5/hash}` MD5 hash of the file.
+* `--sha1` SHA1 information about the file
+  * `{sha1/hash}` SHA1 hash of the file.
+
 ## web crawling
 please be courteous to the package repositories. Its really easy to get package explosion.
 ### Fetching ipks from http://archive.openwrt.org/
