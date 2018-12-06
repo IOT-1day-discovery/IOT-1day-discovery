@@ -71,15 +71,23 @@ def updateFsInfo(filePath, args, d):
         size, mtime = stat.st_size, stat.st_mtime
         timestampUtc = datetime.datetime.utcfromtimestamp(mtime).strftime('%FT%T.%fZ')
 
-        filesystemPath = d['firmware/filesystem']
-        filePath = '/' / filePath.relative_to(filesystemPath)
-
         d.update({'fs/name': filePath.name,
                   'fs/dirname': filePath.parent,
                   'fs/fullname': filePath,
                   'fs/size': size,
                   'fs/mtime': mtime,
                   'fs/timestamp-utc': timestampUtc})
+
+        try:
+            filesystemPath = d['firmware/filesystem']
+        except KeyError as e:
+            pass
+        else:
+            filePath = '/' / filePath.relative_to(filesystemPath)
+
+            d.update({'fs/firmware/dirname': filePath.parent,
+                      'fs/firmware/fullname': filePath})
+
     return True
 
 # Regular expression used to extract the hash from the output of
@@ -328,7 +336,7 @@ def listFilesystems(filesystemPath, args, d):
         raise RuntimeError("filesystem path `{}' is not a directory".format(filesystemPath))
 
     if filesystemPath.name == 'filesystem':
-        if args.firmware or args.fs: # `fs/name' et al. needs `firmware/filesystem'
+        if args.firmware:
             d = dict(d)      # _do not update_ the original dictionary
             d.update({'firmware/filesystem': filesystemPath})
         return listFiles(filesystemPath, args, d)
