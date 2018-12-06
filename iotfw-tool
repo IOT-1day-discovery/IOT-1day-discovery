@@ -7,7 +7,131 @@ import re
 import subprocess
 import sys
 
+def updateSubprocessOutput(key, cmdline, regex, args, d):
+    """
+    Updates the info dictionary with output of an arbitrary command.
+
+    Parameters:
+    key - the dictionary key to store the output at.
+    cmdline - the command line to execute.
+    regex - the regular expression for parsing the output; it must
+    define a capture group named `output', whose value will be stored
+    in the dictionary.
+    args - additional user-supplied arguments
+    d - the info dictionary to update.
+
+    Retuns:
+    False if d should not be emitted, True otherwise.
+    """
+    if key not in d:
+        output = subprocess.check_output(cmdline).decode()
+        m = regex.match(output)
+        if not m:
+            raise RuntimeError("command line output match failed, key=`{}' output=`{}'".format(key, output))
+
+        d.update({key: m.group('output')})
+    return True
+
+# Regular expression to extract/parse `file' output.
+# Currently, it just captures the entire line, which strips the
+# newline at the end.
+RE_FILE = re.compile('^(?P<output>.*)$')
+
+def updateFileInfo(filePath, args, d):
+    """
+    Update the info dictionary with `file' output.
+
+    Parameters:
+    filePath - path to the file in question
+    args - additional user-supplied arguments
+    d - the dictionary to be updated
+
+    Returns:
+    False if d should not be emitted, True otherwise.
+    """
+    return updateSubprocessOutput('file/output',
+                                  ['file', '--brief', str(filePath)],
+                                  RE_FILE, args, d)
+
+def updateFsInfo(filePath, args, d):
+    """
+    Update the info dictionary with FS-supplied information about the
+    file.
+
+    Parameters:
+    filePath - path to the file in question
+    args - additional user-supplied arguments
+    d - the dictionary to be updated
+
+    Returns:
+    False if d should not be emitted, True otherwise.
+    """
+    if 'fs/name' not in d:
+        stat = filePath.stat()
+        size, mtime = stat.st_size, stat.st_mtime
+        timestampUtc = datetime.datetime.utcfromtimestamp(mtime).strftime('%FT%T.%fZ')
+
+        filesystemPath = d['firmware/filesystem']
+        filePath = '/' / filePath.relative_to(filesystemPath)
+
+        d.update({'fs/name': filePath.name,
+                  'fs/dirname': filePath.parent,
+                  'fs/fullname': filePath,
+                  'fs/size': size,
+                  'fs/mtime': mtime,
+                  'fs/timestamp-utc': timestampUtc})
+    return True
+
+# Regular expression used to extract the hash from the output of
+# `md5sum'.
+RE_MD5 = re.compile('^(?P<output>[0-9a-f]{32}) (?: |\\*)')
+
+def updateMd5(filePath, args, d):
+    """
+    Update the info dictionary with MD5 hash of the file.
+
+    Parameters:
+    filePath - path to the file in question
+    args - additional user-supplied arguments
+    d - the info dictionary to update
+
+    Returns:
+    False if d should not be emitted, True otherwise.
+    """
+    return updateSubprocessOutput('md5/hash',
+                                  ['md5sum', '--binary', str(filePath)],
+                                  RE_MD5, args, d)
+
+# Regular expression used to extract the hash from the output of
+# `sha1sum'.
+RE_SHA1 = re.compile('^(?P<output>[0-9a-f]{40}) (?: |\\*)')
+
+def updateSha1(filePath, args, d):
+    """
+    Update the info dictionary with SHA1 hash of the file.
+
+    Parameters:
+    filePath - path to the file in question
+    args - additional user-supplied arguments
+    d - the info dictionary to update
+    """
+    return updateSubprocessOutput('sha1/hash',
+                                  ['sha1sum', '--binary', str(filePath)],
+                                  RE_SHA1, args, d)
+
 def mkElfinfoRegexp():
+    """
+    Constructs a regular expression for extracting ELF information
+    from output of the `file' utility.
+
+    Parsing output of `file' is the easiest, but not necessarily the
+    right or the best approach; if it proves to be a limitation, the
+    next step would be to use a proper library (libelf?).
+
+    Returns:
+    The (compiled) regular expression with appropriately named match
+    groups.
+    """
     bits = ['32', '64']
     endian = ['LSB', 'MSB']
     osabi = ['GNU/Linux', 'SYSV']
@@ -88,184 +212,261 @@ def mkElfinfoRegexp():
 
     return re.compile(pattern)
 
-RE_MD5 = re.compile('^(?P<hash>[0-9a-f]{32}) (?: |\\*)')
-RE_SHA1 = re.compile('^(?P<hash>[0-9a-f]{40}) (?: |\\*)')
-RE_FILE = re.compile('^(?P<output>.*)$')
+# Regular expression used for deciding if a given file is an ELF file
+# or not; it is matched against output of `file'. If the regexp
+# does not match, the file is silently skipped.
 RE_FILE_ELF = re.compile('^(?P<output>\\bELF\\b.*)$')
+
+# Regular expression used for parsing out details about an ELF file
+# from the output of `file' utility. It is separate from RE_FILE_ELF
+# so that the (rather complicated) parsing does not fail silently.
 RE_FILE_ELFINFO = mkElfinfoRegexp()
 
-def listFile(filePath, args):
+def updateElfInfo(filePath, args, d):
+    """
+    Update the info dictionary with details about an ELF file.
+
+    Parameters:
+    filePath - path to the ELF file in question.
+    args - additional user-supplied arguments
+    d - the info dictionary to update
+
+    Returns:
+    False if d should not be emitted, True otherwise.
+    """
+    if 'elf/type' not in d:
+        if not updateFileInfo(filePath, args, d):
+            return False
+
+        output = d['file/output']
+        m = RE_FILE_ELF.match(output)
+        if not m:
+            # print("ignoring `{}' which is not an ELF file".format(filePath), file=sys.stderr)
+            return False
+
+        m = RE_FILE_ELFINFO.match(m.group('output'))
+        if not m:
+            raise RuntimeError("ELF info matching failed, output=`{}'".format(output))
+
+        d.update({'elf/type': m.group('elftype'),
+                  'elf/bits': m.group('bits'),
+                  'elf/endian': m.group('endian'),
+                  'elf/osabi': m.group('osabi') or 'NULL',
+                  'elf/osversion': m.group('osversion') or 'NULL',
+                  'elf/abiversion': m.group('abiversion'),
+                  'elf/machine': m.group('machine'),
+                  'elf/linkage': m.group('linkage') or 'NULL',
+                  'elf/interpreter': m.group('interpreter') or 'NULL',
+                  'elf/buildid/hashf': m.group('buildid_hashf') or 'NULL',
+                  'elf/buildid/hash': m.group('buildid_hash') or 'NULL',
+                  'elf/stripped': m.group('stripped')})
+    return True
+
+def mkParserPrintFile(mkParser):
+    """
+    Setup subcommand parser for the listFiles function.
+
+    Parameters:
+    mkParser - an ArgumentParser factory function.
+
+    Returns:
+    The parser that has been set up.
+    """
+    parser = mkParser('file', description='print information about a file or directory')
+    parser.set_defaults(listF=lambda args: listFiles(pathlib.Path(args.path), args, {}))
+    parser.add_argument('path', help='path to the file or directory')
+    return parser
+
+def listFiles(filePath, args, d):
+    """
+    Emits dictionaries with information about files under filePath.
+
+    Parameters:
+    filePath - the path to examine
+    args - additional user-supplied arguments
+    d - a dictionary with information collected so far
+
+    Returns:
+    An iterable collection of the info dictionaries.
+    """
     if filePath.is_symlink():
         # print("symlink path `{}' ignored".format(filePath), file=sys.stderr)
         return ()
     if filePath.is_dir():
         return itertools.chain.from_iterable(map(
-            lambda filePath: listFile(filePath, args),
+            lambda filePath: listFiles(filePath, args, d),
             filePath.iterdir()))
     if not filePath.is_file():
-        print("path `{}' is not a regular file or a directory".format(filePath), file=sys.stderr)
+        raise RuntimeError("path `{}' is not a regular file or a directory".format(filePath))
+
+    d = dict(d)              # _do not update_ the original dictionary
+    if (args.file and not updateFileInfo(filePath, args, d)) or \
+       (args.elf and not updateElfInfo(filePath, args, d)) or \
+       (args.fs and not updateFsInfo(filePath, args, d)) or \
+       (args.md5 and not updateMd5(filePath, args, d)) or \
+       (args.sha1 and not updateSha1(filePath, args, d)):
         return ()
-
-    d = {}
-
-    if args.file or args.elf:
-        output = subprocess.check_output(['file', '--brief', str(filePath)]).decode()
-        m = RE_FILE.match(output)
-        if not m:
-            print("file utility match failed, output=`{}'".format(output), file=sys.stderr)
-            return ()
-
-        if args.file:
-            d.update({'file/output': m.group('output')})
-
-        if args.elf:
-            m = RE_FILE_ELF.match(m.group('output'))
-            if not m:
-                # print("ignoring `{}' which is not an ELF file".format(filePath), file=sys.stderr)
-                return ()
-
-            m = RE_FILE_ELFINFO.match(m.group('output'))
-            if not m:
-                print("ELF info matching failed, output=`{}'".format(output), file=sys.stderr)
-                return ()
-
-            d.update({'elf/type': m.group('elftype'),
-                      'elf/bits': m.group('bits'),
-                      'elf/endian': m.group('endian'),
-                      'elf/osabi': m.group('osabi') or 'NULL',
-                      'elf/osversion': m.group('osversion') or 'NULL',
-                      'elf/abiversion': m.group('abiversion'),
-                      'elf/machine': m.group('machine'),
-                      'elf/linkage': m.group('linkage') or 'NULL',
-                      'elf/interpreter': m.group('interpreter') or 'NULL',
-                      'elf/buildid_hashf': m.group('buildid_hashf') or 'NULL',
-                      'elf/buildid_hash': m.group('buildid_hash') or 'NULL',
-                      'elf/stripped': m.group('stripped')})
-
-    if args.fs:
-        stat = filePath.stat()
-        size, mtime = stat.st_size, stat.st_mtime
-        timestampUtc = datetime.datetime.utcfromtimestamp(mtime).strftime('%FT%T.%fZ')
-
-        d.update({'fs/name': filePath.name,
-                  'fs/dirname': filePath.parent,
-                  'fs/fullname': filePath,
-                  'fs/size': size,
-                  'fs/mtime': mtime,
-                  'fs/timestamp-utc': timestampUtc})
-
-    if args.md5:
-        output = subprocess.check_output(['md5sum', '--binary', str(filePath)]).decode()
-        m = RE_MD5.match(output)
-        if not m:
-            print("md5 hash matching failed, output=`{}'".format(output))
-            return ()
-
-        d.update({'md5/hash': m.group('hash')})
-
-    if args.sha1:
-        output = subprocess.check_output(['sha1sum', '--binary', str(filePath)]).decode()
-        m = RE_SHA1.match(output)
-        if not m:
-            print("sha1 hash matching failed, output=`{}'".format(output))
-            return ()
-
-        d.update({'sha1/hash': m.group('hash')})
-
     return (d,)
 
-def listFilesystem(filesystemPath, args):
+def listFilesystems(filesystemPath, args, d):
+    """
+    Emits dictionaries with information about firmware filesystems
+    under filesystemPath.
+
+    Parameters:
+    filesystemPath - the path to examine
+    args - additional user-supplied arguments
+    d - a dictionary with information collected so far
+
+    Returns:
+    An iterable collection of the info dictionaries.
+    """
     if filesystemPath.is_symlink() or filesystemPath.is_file():
         # print("filesystem path `{}' ignored".format(filesystemPath), file=sys.stderr)
         return ()
     if not filesystemPath.is_dir():
-        print("filesystem path `{}' is not a directory".format(filesystemPath), file=sys.stderr)
-        return ()
+        raise RuntimeError("filesystem path `{}' is not a directory".format(filesystemPath))
 
     if filesystemPath.name == 'filesystem':
-        result = listFile(filesystemPath, args)
-
-        if args.firmware:
-            def updateFirmware(d):
-                d.update({'firmware/filesystem': filesystemPath})
-                return d
-            result = map(updateFirmware, result)
-
-        return result
+        if args.firmware or args.fs: # `fs/name' et al. needs `firmware/filesystem'
+            d = dict(d)      # _do not update_ the original dictionary
+            d.update({'firmware/filesystem': filesystemPath})
+        return listFiles(filesystemPath, args, d)
 
     return itertools.chain.from_iterable(map(
-        lambda filePath: listFilesystem(filePath, args),
+        lambda filesystemSubpath: listFilesystems(filesystemSubpath, args, d),
         filesystemPath.iterdir()))
 
-def listFirmware(firmwarePath, args):
-    result = listFilesystem(firmwarePath, args)
+def listFirmware(firmwarePath, args, d):
+    """
+    Emits dictionaries with information about the firmware under
+    firmwarePath.
 
+    Parameters:
+    firmwarePath - path to the extracted firmware
+    args - additional user-supplied arguments
+    d - a dictionary with information collected so far
+
+    Returns:
+    An iterable collection of the info dictionaries.
+    """
     if args.firmware:
-        def updateFirmware(d):
-            d.update({'firmware/name': firmwarePath.name,
-                      'firmware/path': firmwarePath})
-            return d
-        result = map(updateFirmware, result)
+        d = dict(d)          # _do not update_ the original dictionary
+        d.update({'firmware/name': firmwarePath.name,
+                  'firmware/path': firmwarePath})
 
-    return result
-
-def listVendor(vendorPath, args):
-    if not vendorPath.is_dir():
-        print("vendor path `{}' is not a directory".format(vendorPath))
-        return ()
-
-    result = itertools.chain.from_iterable(map(
-        lambda firmwarePath: listFirmware(firmwarePath, args),
-        vendorPath.iterdir()))
-
-    if args.vendor:
-        def updateVendor(d):
-            d.update({'vendor/name': vendorPath.name,
-                      'vendor/path': vendorPath})
-            return d
-        result = map(updateVendor, result)
-
-    return result
-
-def listRoot(rootPath, args):
-    if not rootPath.is_dir():
-        print("root path `{}' is not a directory".format(rootPath), file=sys.stderr)
-        return ()
-
-    return itertools.chain.from_iterable(map(
-        lambda vendorPath: listVendor(vendorPath, args),
-        rootPath.iterdir()))
-
-def mkParserPrintFile(mkParser):
-    parser = mkParser('file', description='print information about a file or directory')
-    parser.set_defaults(listF=lambda args: listFile(pathlib.Path(args.path), args))
-    parser.add_argument('path', help='path to the file or directory')
+    return listFilesystems(firmwarePath, args, d)
 
 def mkParserPrintFirmware(mkParser):
+    """
+    Setup subcommand parser for the listFirmware function.
+
+    Parameters:
+    mkParser - an ArgumentParser factory function.
+
+    Returns:
+    The parser that has been set up.
+    """
     parser = mkParser('firmware', description='print information about firmware')
-    parser.set_defaults(listF=lambda args: listFirmware(pathlib.Path(args.path), args))
+    parser.set_defaults(listF=lambda args: listFirmware(pathlib.Path(args.path), args, {}))
     parser.add_argument('path', help='path to the firmware root')
+    return parser
+
+def listVendor(vendorPath, args, d):
+    """
+    Emits dictionaries with information about the vendor under
+    vendorPath.
+
+    Parameters:
+    vendorPath - path to the vendor directory
+    args - additional user-supplied arguments
+    d - a dictionary with information collected so far
+
+    Returns:
+    An iterable collection of the info dictionaries.
+    """
+    if not vendorPath.is_dir():
+        raise RuntimeError("vendor path `{}' is not a directory".format(vendorPath))
+
+    if args.vendor:
+        d = dict(d)          # _do not update_ the original dictionary
+        d.update({'vendor/name': vendorPath.name,
+                  'vendor/path': vendorPath})
+
+    return itertools.chain.from_iterable(map(
+        lambda firmwarePath: listFirmware(firmwarePath, args, d),
+        vendorPath.iterdir()))
 
 def mkParserPrintVendor(mkParser):
-    parser = mkParser('vendor', description='print information about vendor firmware')
-    parser.set_defaults(listF=lambda args: listVendor(pathlib.Path(args.path), args))
-    parser.add_argument('path', help='path to the vendor root')
+    """
+    Setup subcommand parser for the listVendor function.
 
-def mkParserPrintRoot(mkParser):
-    parser = mkParser('root', description='print information about firmware database')
-    parser.set_defaults(listF=lambda args: listRoot(pathlib.Path(args.path), args))
-    parser.add_argument('path', help='path to the database root')
+    Parameters:
+    mkParser - an ArgumentParser factory function.
+
+    Returns:
+    The parser that has been set up.
+    """
+    parser = mkParser('vendor', description='print information about vendor firmware')
+    parser.set_defaults(listF=lambda args: listVendor(pathlib.Path(args.path), args, {}))
+    parser.add_argument('path', help='path to the vendor root')
+    return parser
+
+def listVendors(vendorsPath, args, d):
+    """
+    Emits dictionaries with information about the vendors under
+    vendorsPath.
+
+    Parameters:
+    vendorsPath - path to the directory with vendors
+    args - additional user-supplied arguments
+    d - a dictionary with information collected so far
+
+    Returns:
+    An iterable collection of the info dictionaries.
+    """
+    if not vendorsPath.is_dir():
+        raise RuntimeError("vendors path `{}' is not a directory".format(vendorsPath))
+
+    return itertools.chain.from_iterable(map(
+        lambda vendorPath: listVendor(vendorPath, args, d),
+        vendorsPath.iterdir()))
+
+def mkParserPrintVendors(mkParser):
+    """
+    Setup subcommand parser for the listVendors function.
+
+    Parameters:
+    mkParser - an ArgumentParser factory function.
+
+    Returns:
+    The parser that has been set up.
+    """
+    parser = mkParser('vendors', description='print information about vendors')
+    parser.set_defaults(listF=lambda args: listVendors(pathlib.Path(args.path), args, {}))
+    parser.add_argument('path', help='path to the directory with vendors')
+    return parser
 
 def mkParserPrint(mkParser):
+    """
+    Setup the `print' subcommand.
+
+    Parameters:
+    mkParser - an ArgumentParser factory function.
+
+    Returns:
+    The parser that has been set up.
+    """
     def handler(args):
         try:
             listF = args.listF
         except AttributeError as e:
             print('nothing to print! use one of the print subcommands, or -h for help')
-            sys.exit(-1)
+            return -1
 
         for d in args.listF(args):
             print(args.formatstr.format(**d))
+        return 0
 
     parser = mkParser('print', description='print information about vendors/firmwares/elf files')
     parser.set_defaults(handlerF=handler)
@@ -281,21 +482,24 @@ def mkParserPrint(mkParser):
     parser.add_argument('formatstr', help='format string to use for printing')
 
     subparsers = parser.add_subparsers(help='the subaction to perform')
-    mkParserPrintRoot(subparsers.add_parser)
+    mkParserPrintVendors(subparsers.add_parser)
     mkParserPrintVendor(subparsers.add_parser)
     mkParserPrintFirmware(subparsers.add_parser)
     mkParserPrintFile(subparsers.add_parser)
 
-parser = argparse.ArgumentParser(description='IoT firmware tool')
-subparsers = parser.add_subparsers()
-mkParserPrint(subparsers.add_parser)
+    return parser
 
-args = parser.parse_args()
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description='IoT firmware tool')
+    subparsers = parser.add_subparsers()
+    mkParserPrint(subparsers.add_parser)
 
-try:
-    handlerF = args.handlerF
-except AttributeError as e:
-    print('nothing to do! select an action (use -h for help)')
-    sys.exit(-1)
+    args = parser.parse_args()
 
-handlerF(args)
+    try:
+        handlerF = args.handlerF
+    except AttributeError as e:
+        print('nothing to do! select an action (use -h for help)')
+        handlerF = lambda args: -1
+
+    sys.exit(handlerF(args))
