@@ -119,6 +119,8 @@ $ ./iotfw-tool print --vendor --fs --firmware --sha1 --elf '{fs/fullname};{elf/m
   * `{md5/hash}` MD5 hash of the file.
 * `--sha1` SHA1 information about the file
   * `{sha1/hash}` SHA1 hash of the file.
+* `--sha256` SHA256 information about the file
+  * `{sha1/hash}` SHA256 hash of the file.
 
 ## web crawling
 ### Documentation
