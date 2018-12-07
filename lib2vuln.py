@@ -873,7 +873,7 @@ def process(args):
                              version=args.version,
                              match_subversion=not args.no_match_subversion,
                              match_unversioned=args.match_unversioned)
-        cves = list(set(map(itemgetter(0), cves)))
+        cves = sorted(set(map(itemgetter(0), cves)))
     
     if args.cve:
         cves = [args.cve]
@@ -896,7 +896,8 @@ def process(args):
     
     # step 3: filter out URLs that might give us a patch
     print('Filter patch URLs..')
-    cve2patch_urls = {cve: PatchPattern.testAllUrls(urls) for cve, urls in cve2url.items()}
+    url_sorter = lambda url: url.url
+    cve2patch_urls = {cve: sorted(PatchPattern.testAllUrls(urls), key=url_sorter) for cve, urls in cve2url.items()}
     
     if args.extract_patch_urls:
         o = {cve: [purl.url for purl in purls] for cve, purls in cve2patch_urls.items()}
@@ -913,11 +914,11 @@ def process(args):
     
     # step 5: preprocess patches to partition them into patch segments
     print('Preprocess patches: extract patch segments..')
-    cve2segments = {cve: list(itertools.chain(*(list(itertools.chain(*(patch2segments(p) for p in ps))) for _, ps in patches.items()))) for cve, patches in cve2patch.items()}
+    cve2segments = {cve: sorted(itertools.chain(*(sorted(itertools.chain(*(patch2segments(p) for p in ps))) for _, ps in patches.items()))) for cve, patches in cve2patch.items()}
 
     # step 6: process patch segments to find vulnerable functions
     print('Process patches: extract vulnerable functions..')
-    cve2vuln_fcn = {cve: list(set(itertools.chain(*(segment2vulnfcn(segment) for segment in segments)))) for cve, segments in cve2segments.items()}
+    cve2vuln_fcn = {cve: sorted(set(itertools.chain(*(segment2vulnfcn(segment) for segment in segments)))) for cve, segments in cve2segments.items()}
 
     printOrWrite(args, 'CVEs and vulnerable functions:', cve2vuln_fcn)
 
