@@ -922,7 +922,7 @@ def process(args):
     printOrWrite(args, 'CVEs and vulnerable functions:', cve2vuln_fcn)
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='Obtain patches/vulnerable  from a CVE identifier or for a specific library')
+    parser = argparse.ArgumentParser(description='Obtain patches/vulnerable from a CVE identifier or for a specific library')
     
     grp = parser.add_argument_group('Output options')
     grp.add_argument('--cve', '-c',
