@@ -215,13 +215,175 @@ This ordering reduces the number of files we have to check our db against. this 
 This is more of a database nicesty as making http requests is easier than making mongodb requests.
 - run by calling *launch.sh*
 ### API Documentation
-#### GET binary/sha1/<hash>
+#### GET binary/iot/names/{name}
+- [x] fetches all the binaries with this name that we parsed on the iot devices.
+- examples:
+```bash
+curl -X GET \
+  http://localhost:8080/binary/iot/names/arp_oversee
+```
+-output
+```json
+{
+    "k": "arp_oversee",
+    "v": [
+        {
+            "filepath": "360/_325bcc38de186d7d96b85839c5696e99b3b42c6f.bin.extracted/filesystem/app/arp_oversee/bin/arp_oversee",
+            "sha1": "89f823fe52353244fcf9cb8373c367e0555b95de"
+        },
+        {
+            "filepath": "360/_4eacbe421bf35935f5321678d3e677331b5a3027.bin.extracted/filesystem/app/arp_oversee/bin/arp_oversee",
+            "sha1": "50c74dd2c5301d9f1ac447d2250125e484b69d1f"
+        },
+        {
+            "filepath": "360/_b84bdd67acc6005eca232a82c3bd97a13b051de0.bin.extracted/filesystem/app/arp_oversee/bin/arp_oversee",
+            "sha1": "fb0901084f42dea979d02d61613079934389852d"
+        }
+    ]
+}
+```
+#### GET binary/ipks/sha1/{hash}
 - [x] fetches binaries associated with this sha.
-#### GET binary/<name>
+- examples:
+```bash
+curl -X GET \
+  http://localhost:8080/binary/ipks/sha1/f44ea9ffb7e15bdb234ffc4f23bdb18823f3d89c \
+```
+or
+```bash
+curl -X GET \
+  http://localhost:8080/binary/ipks/sha1/4876d0e57e7d35b9596899b4955989f0e69ef9d3 \
+```
+or any of the other sha1s found in files:
+- output
+```json
+{
+        "files": [
+            {
+                "name": "/usr/bin/ssh",
+                "sha1": "4876d0e57e7d35b9596899b4955989f0e69ef9d3"
+            },
+            {
+                "name": "/etc/ssh/ssh_config",
+                "sha1": "f44ea9ffb7e15bdb234ffc4f23bdb18823f3d89c"
+            },
+            {
+                "name": "/conffiles",
+                "sha1": "1d646f8246fad07f994e4f37d23b33b1dfd2e045"
+            },
+            {
+                "name": "/postrm",
+                "sha1": "e21338a5930c6bf8bfb2294a201e5f580a20b690"
+            }
+        ],
+        "descriptors": [
+            "ipks",
+            "barrier_breaker",
+            "14.07",
+            "ramips",
+            "openssh-client_6.6p1-1_ramips_24kec.ipk"
+        ]
+    }
+```
+#### GET binary/ipkNames/{ipkName}
 - [ ] fetches binaries associated with this name. (in progress)
-#### GET /sha1/<hash>
+#### GET package/sha1/{hash}
 - [x] fetches packages associated with this hash
-#### GET /sha256/<hash> 
+-example
+```bash
+curl -X GET \
+  http://localhost:8080/package/sha1/{sha1 of openssh-client_6.6p1-1_ramips_24kec.ipk}
+```
+- output
+```json
+{
+    "Package": "openssh-client",
+    "Version": "6.6p1-1",
+    "Depends": "libc, libopenssl, zlib",
+    "Source": "feeds/packages/net/openssh",
+    "Section": "net",
+    "Maintainer": "Peter Wagner <tripolar@gmx.at>",
+    "Architecture": "ramips_24kec",
+    "Installed-Size": "310077",
+    "Filename": "openssh-client_6.6p1-1_ramips_24kec.ipk",
+    "Size": "309896",
+    "MD5Sum": "3b4a6b7f474cafe84797aeda585722f3",
+    "SHA256sum": "da7cde828734b6b53d618a23185151b1b44b188c00a0269227736b6c4b183cdd",
+    "Description":  "OpenSSH client."
+}
+```
+#### GET package/sha256/{hash}
 - [x] fetches packages associated with this hash
-#### GET /md5/<hash>
+- example
+```bash
+curl -X GET \
+  http://localhost:8080/package/sha256/da7cde828734b6b53d618a23185151b1b44b188c00a0269227736b6c4b183cdd
+```
+- output
+```json
+{
+    "Package": "openssh-client",
+    "Version": "6.6p1-1",
+    "Depends": "libc, libopenssl, zlib",
+    "Source": "feeds/packages/net/openssh",
+    "Section": "net",
+    "Maintainer": "Peter Wagner <tripolar@gmx.at>",
+    "Architecture": "ramips_24kec",
+    "Installed-Size": "310077",
+    "Filename": "openssh-client_6.6p1-1_ramips_24kec.ipk",
+    "Size": "309896",
+    "MD5Sum": "3b4a6b7f474cafe84797aeda585722f3",
+    "SHA256sum": "da7cde828734b6b53d618a23185151b1b44b188c00a0269227736b6c4b183cdd",
+    "Description":  "OpenSSH client."
+}
+```
+#### GET package/md5/{hash}
 - [x] fetches packages associated with this hash
+- example
+```bash
+curl -X GET \
+  http://localhost:8080/package/md5/3b4a6b7f474cafe84797aeda585722f3
+```
+- output
+```json
+{
+    "Package": "openssh-client",
+    "Version": "6.6p1-1",
+    "Depends": "libc, libopenssl, zlib",
+    "Source": "feeds/packages/net/openssh",
+    "Section": "net",
+    "Maintainer": "Peter Wagner <tripolar@gmx.at>",
+    "Architecture": "ramips_24kec",
+    "Installed-Size": "310077",
+    "Filename": "openssh-client_6.6p1-1_ramips_24kec.ipk",
+    "Size": "309896",
+    "MD5Sum": "3b4a6b7f474cafe84797aeda585722f3",
+    "SHA256sum": "da7cde828734b6b53d618a23185151b1b44b188c00a0269227736b6c4b183cdd",
+    "Description":  "OpenSSH client."
+}
+```
+#### GET package/name/{packageName}
+- [ ] fetches packages associated with this hash (in progress)
+-example
+```bash
+curl -X GET \
+  http://localhost:8080/name/packageName/openssh-client_6.6p1-1_ramips_24kec.ipk
+```
+- output
+```json
+{
+    "Package": "openssh-client",
+    "Version": "6.6p1-1",
+    "Depends": "libc, libopenssl, zlib",
+    "Source": "feeds/packages/net/openssh",
+    "Section": "net",
+    "Maintainer": "Peter Wagner <tripolar@gmx.at>",
+    "Architecture": "ramips_24kec",
+    "Installed-Size": "310077",
+    "Filename": "openssh-client_6.6p1-1_ramips_24kec.ipk",
+    "Size": "309896",
+    "MD5Sum": "3b4a6b7f474cafe84797aeda585722f3",
+    "SHA256sum": "da7cde828734b6b53d618a23185151b1b44b188c00a0269227736b6c4b183cdd",
+    "Description":  "OpenSSH client."
+}
+```
