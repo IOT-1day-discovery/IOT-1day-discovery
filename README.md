@@ -121,6 +121,9 @@ $ ./iotfw-tool print --vendor --fs --firmware --sha1 --elf '{fs/fullname};{elf/m
   * `{sha1/hash}` SHA1 hash of the file.
 
 ## web crawling
+### Documentation
+https://iot-1day-discovery.github.io/
+
 please be courteous to the package repositories. Its really easy to get package explosion.
 ### Fetching ipks from http://archive.openwrt.org/
 the archive has no api so we have to convert html tables to json in the fetchIpks package.
