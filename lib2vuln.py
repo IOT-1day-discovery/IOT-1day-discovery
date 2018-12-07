@@ -18,18 +18,97 @@ from urllib.parse import urljoin
 
 userAgent = 'Mozilla/5.0 (compatible; CVEBot)'
 
+
+# ======================= STEP 1: FETCH CVES for library =======================
+
+
+def checkVersionmatch(v_query, v_config, match_subversion=True, match_unversioned=False):
+    '''
+    Checks whether the queried version (v1) matches the version v2.
+    Two versions are considered identical in 3 cases:
+     1. No version information given about the queried library
+     2. Configurations does not mention a specific version and match_unversioned is True
+     3. The main version string match and either match_subversion is False or the 
+        subversion strings (e.g. build/commit nr) match the configuration's version string.
+    '''
+    if not v_query or (match_unversioned and not v_config):
+        return True
+    
+    v_config = v_config or [None]
+    
+    # Cases 1, 2 did not apply, so check for case 3: main version need to match
+    if v_query[0] != v_config[0]:
+        return False
+    
+    if not match_subversion:
+        return True
+    
+    # filter out wildcards
+    v_config = list(filter(lambda x: x and x != '*', v_config))
+    
+    l = min(len(v_query), len(v_config))
+    return v_query[:l] == v_config[:l]
+
+def getCVEsForLib(lib,
+                  userAgent='Mozilla/5.0 (compatible; CVEBot)',
+                  version=None,
+                  match_subversion=True,
+                  match_unversioned=False):
+    req = requests.get('http://cve.circl.lu/api/search/%s' % lib, headers={'User-Agent': userAgent})
+    if req.status_code != 200:
+        raise Exception('Cannot fetch CVE details for %s' % lib)
+    
+    vs = None if not version else version.split('-')
+    
+    cves = []
+    json = req.json()
+    for cve in json['data']:
+        for conf in cve['vulnerable_configuration']:
+            v = conf.split(':')
+            if len(v) < 5:
+                # invalid configuration not containing a software name
+                continue
+            _, _, _, _, c_name, *c_version = v
+            
+            
+            if lib == c_name and checkVersionmatch(vs,
+                                                   c_version,
+                                                   match_subversion=match_subversion,
+                                                   match_unversioned=match_unversioned):
+                cves.append((cve['id'], conf))
+    return cves
+
+
+# ====================== STEP 2: FETCH REFERENCES FOR CVES =====================
+
+
+def getCVEReferences(cve, userAgent='Mozilla/5.0 (compatible; CVEBot)'):
+    req = requests.get('http://cve.circl.lu/api/cve/%s' % cve, headers={'User-Agent': userAgent})
+    if req.status_code != 200:
+        print('Cannot fetch CVE details for %s' % cve)
+        return []
+
+    json = req.json()
+    if not json or 'references' not in json:
+        return []
+    return json['references']
+
+
+# ============ STEP 3 AND 4: FILTER PATCH URLS AND RETRIEVE PATCHES =============
+
+
 def looksLikePatch(s):
     '''
     All patches must contain '+++'/'---', one each for the compared files.
     Further, there needs to be at least one '@@', which describes the changed line
     '''
-    return '+++' in s and '---' in s and '@@' in s
+    return '\n+++' in s and '\n---' in s and '\n@@' in s
 
 def looksLikePatchBytes(s):
     '''
     Same as looksLikePatch(), but for python bytes
     '''
-    return b'+++' in s and b'---' in s and b'@@' in s
+    return b'\n+++' in s and b'\n---' in s and b'\n@@' in s
 
 
 class PatchPattern:
@@ -171,7 +250,7 @@ class PatchPattern:
             return r
 
         try:
-            res = requests.request('GET', self.new_url, headers={"User-Agent": userAgent}, timeout=self.TIMEOUT)
+            res = requests.get(self.new_url, headers={"User-Agent": userAgent}, timeout=self.TIMEOUT)
             assert(res.status_code == 200)
         except Exception as e:
             '''
@@ -183,7 +262,7 @@ class PatchPattern:
             print('Cannot fetch %s: %s' % (self.new_url, e))
             if self.url != self.new_url:
                 try:
-                    res = requests.request('GET', self.url, headers={"User-Agent": userAgent}, timeout=self.TIMEOUT)
+                    res = requests.get(self.url, headers={"User-Agent": userAgent}, timeout=self.TIMEOUT)
                     assert(res.status_code == 200)
                 except Exception as e:
                     return []
@@ -232,7 +311,7 @@ class PatchPattern:
         @returns            A list of links
         '''
         try:
-            res = requests.request('GET', self.new_url, headers={"User-Agent": userAgent}, timeout=self.TIMEOUT)
+            res = requests.get(self.new_url, headers={"User-Agent": userAgent}, timeout=self.TIMEOUT)
             assert(res.status_code == 200)
         except Exception as e:
             print('Cannot fetch %s: %s' % (self.new_url, e))
@@ -338,7 +417,7 @@ class KeywordMatch(PatchPattern):
 
     def _getPatch(self, userAgent):
         try:
-            res = requests.request('GET', self.new_url, headers={"User-Agent": userAgent}, timeout=self.TIMEOUT)
+            res = requests.get(self.new_url, headers={"User-Agent": userAgent}, timeout=self.TIMEOUT)
             assert(res.status_code == 200)
         except Exception as e:
             print('Cannot fetch %s: %s' % (self.new_url, e))
@@ -445,7 +524,7 @@ class GitlabIssue(PatchPattern):
         links = self._getLinksFor(self.new_url, self.LINK_SELECTOR, userAgent)
 
         try:
-            res = requests.request('GET', self.JSON_FMT % self.details, headers={"User-Agent": userAgent}, timeout=self.TIMEOUT)
+            res = requests.get(self.JSON_FMT % self.details, headers={"User-Agent": userAgent}, timeout=self.TIMEOUT)
             assert(res.status_code == 200)
         except Exception as e:
             print('Cannot fetch %s: %s' % (self.new_url, e))
@@ -474,56 +553,62 @@ class CGit(PatchPattern):
     Patches from links to commits on cgit servers can be retrieved by replacing
     '/commit/' with '/patch/'
     '''
+    # http(s)://some-domain.com/some/path/(commit|diff|patch)/?some=args&id=required&more-args=why-not
     URL_PATTERN = r'^((?:https?://)?.+/(?:commit|diff|patch)(?:/.*)?\?(?:.+\&)?id=.+(?:\&.+)?)$'
     URL_REPLACE_STR = r'/(commit|diff|patch)/'
     URL_REPLACE_WITH = '/patch/'
 
 
 class Gitweb1(PatchPattern):
-    # (r'^((?:https?://)?.+\?p=[^;]+;)(?:a=commit;|a=commitdiff;|a=patch;)?(h=.+)$', '%sa=patch;%s', GITWEB),
-    # http(s)://some-url.com/some/path/?some=args;more=args;p=required;a=not-required;h=required;order=not-relevant
-    URL_PATTERN = r'^((?:https?://)?.+?\?(?:.*(?:;|(?<=\?))p=[^;]+()|.*(?:;|(?<=\?))a=(?:commit(?:diff)?|patch)()|.*(?:;|(?<=\?))h=[^;]+()){2,3}(?:\2|\3)\4.*)$'
-    URL_REPLACE_STR = r'(?:(h=\w+)|a=(commit(?:diff)?|patch))'
+    # http(s)://some-domain.com/some/path/?some=args;more=args;p=required;a=not-required;h=required;order=not-relevant
+    URL_PATTERN = r'^((?:https?://)?.+?\?(?:.*(?:;|(?<=\?))p=[^;]+()|.*(?:;|(?<=\?))a=(?:commit(?:diff)?|patch|blob)()|.*(?:;|(?<=\?))h=[^;]+()){2,3}(?:\2|\3)\4.*)$'
+    URL_REPLACE_STR = r'(?:(h=\w+)|a=(commit(?:diff)?|patch|blob))'
     URL_REPLACE_WITH = '\\1;a=patch'
 
 
 class Gitweb2(PatchPattern):
-    # http(s)://some-url-but-not-(www.)github.com/some-name/(commit|patch)/what-commit-or-patch
-    URL_PATTERN = r'^((?:https?://)?(?<!(?:www\.)github\.com)(?<!:)/.+/(?:commit(?:diff)?|commit|patch)/[^?]+)$'
-    URL_REPLACE_STR = r'/(commit(?:diff)?|diff|patch)/'
+    # http(s)://some-domain-but-not-(www.)github.com/some-name/(commit|patch|blob)/what-commit-or-patch
+    URL_PATTERN = r'^((?:https?://)?(?<!(?:www\.)github\.com)(?<!:)/.+/(?:commit(?:diff)?|commit|patch|blob)/[^?]+)$'
+    URL_REPLACE_STR = r'/(commit(?:diff)?|diff|patch|blob)/'
     URL_REPLACE_WITH = '/patch/'
 
 
 class Gitweb3(PatchPattern):
+    # http(s)://some-domain.com/any/path/?some=parameters;p=required-or;a=blobdiff(_plain)?;either-p-or-a=required;h=required
     URL_PATTERN = r'^((?:https?://)?.+?\?(?:.*(?:;|(?<=\?))p=[^;]+()|.*(?:;|(?<=\?))a=blobdiff(?:_plain)?()|.*(?:;|(?<=\?))h=[^;]+()){2,3}(?:\2|\3)\4.*)$'
     URL_REPLACE_STR = r'a=blobdiff(?:_plain)?'
     URL_REPLACE_WITH = 'a=blobdiff_plain'
 
 
 class Hgweb(PatchPattern):
+    # http(s)://some-domain.com/any/path/(raw-diff|raw-rev|diff|comparison)/
     URL_PATTERN = r'^((?:https?://)?.+/(?:raw-diff|raw-rev|diff|comparison)/.+)$'
     URL_REPLACE_STR = r'/(raw-diff|raw-rev|diff|comparison)/'
     URL_REPLACE_WITH = '/raw-diff/'
 
 
 class Loggerhead(PatchPattern):
+    # http(s)://some-domain.com/any/path/(diff|revision)/
     URL_PATTERN = r'^((?:https?://)?.+/(?:diff|revision)/.+)$'
     URL_REPLACE_STR = r'/(diff|revision)/'
     URL_REPLACE_WITH = '/diff/'
 
 
 class Patchwork(PatchPattern):
+    # http(s)://some-domain.com/any/path/patch/commit-identifier
     URL_PATTERN = r'^((?:https?://)?.+/patch/\d+)(?:/[^/])?/?$'
     URL_REPLACE_WITH = '%s/raw/'
 
 
 class Redmine(PatchPattern):
+    # http(s)://some-domain.com/any/path/repository/revisions/commit-identifier
     URL_PATTERN = r'^((?:https?://)?.+/repository/revisions/.+)$'
     URL_REPLACE_STR = r'(/revisions/[^?]+(\?.*)?)'
     URL_REPLACE_WITH = lambda self, x: x[1] + (x[2] and '&' or '?') + 'format=diff'
 
 
 class Sourceforge(PatchPattern):
+    # http(s)://some-domain.com/any/path/p/?some=args&(diff|bardiff)=commit-identifier&other-args=why-not
     URL_PATTERN = r'^((?:https?://)?.+/p/.+\?(?:.+&)?(?:diff|barediff)=\w+(?:&.+)?)$'
     URL_REPLACE_STR = r'([?&])diff='
     URL_REPLACE_WITH = '\\1barediff='
@@ -533,12 +618,14 @@ class Sourceforge(PatchPattern):
 
 
 class BugzillaAttachment(PatchPattern):
+    # http(s)://some-domain.com/any/path/attachment.cgi?some=args&id=required&other-args=why-not
     URL_PATTERN = r'^((?:https?://)?.+/attachment\.cgi\?(?:.+&)?id=\d+(?:&.+)?)$'
     URL_REPLACE_STR = r'(?:(attachment\.cgi\?)|action=(diff|edit)?)'
     URL_REPLACE_WITH = '\\1action=diff&format=raw&'
 
 
 class Bugzilla(PatchPattern):
+    # http(s)://some-domain.com/any/path/show_bug.cgi?some=args&id=required&other-args=why-not
     URL_PATTERN = r'^((?:https?://)?.+/show_bug\.cgi\?(?:.+&)?id=\d+(?:&.+)?)$'
     LINK_SELECTOR = '.bz_comment_table .bz_comment_text a'
     IS_DIRECT = False
@@ -569,65 +656,7 @@ PatchPattern.register(BugzillaAttachment)
 PatchPattern.register(Sourceforge)
 
 
-def getCVEReferences(cve, userAgent='Mozilla/5.0 (compatible; CVEBot)'):
-    req = requests.get('http://cve.circl.lu/api/cve/%s' % cve, headers={'User-Agent': userAgent})
-    if req.status_code != 200:
-        print('Cannot fetch CVE details for %s' % cve)
-        return []
-
-    json = req.json()
-    if 'references' not in json:
-        return []
-    return json['references']
-
-def checkVersionmatch(v_query, v_config, match_subversion=True, allow_unversioned=False):
-    '''
-    Checks whether the queried version (v1) matches the version v2.
-    Two versions are considered identical in 3 cases:
-     1. No version information given about the queried library
-     2. Configurations does not mention a specific version and allow_unversioned is True
-     3. The main version string match and either match_subversion is False or the 
-        subversion strings (e.g. build/commit nr) match the configuration's version string.
-    '''
-    if not v_query or (allow_unversioned and not v_config):
-        return True
-    
-    v_config = v_config or [None]
-    
-    # Cases 1, 2 did not apply, so check for case 3: main version need to match
-    if v_query[0] != v_config[0]:
-        return False
-    
-    if not match_subversion:
-        return True
-    
-    # filter out wildcards
-    v_config = list(filter(lambda x: x and x != '*', v_config))
-    
-    l = min(len(v_query), len(v_config))
-    return v_query[:l] == v_config[:l]
-
-def getCVEsForLib(lib, userAgent='Mozilla/5.0 (compatible; CVEBot)', version=None, allow_unversioned=False):
-    req = requests.get('http://cve.circl.lu/api/search/%s' % lib, headers={'User-Agent': userAgent})
-    if req.status_code != 200:
-        raise Exception('Cannot fetch CVE details for %s' % lib)
-    
-    vs = None if not version else version.split('-')
-    
-    cves = []
-    json = req.json()
-    for cve in json['data']:
-        for conf in cve['vulnerable_configuration']:
-            v = conf.split(':')
-            if len(v) < 5:
-                # invalid configuration not containing a software name
-                continue
-            _, _, _, _, c_name, *c_version = v
-            
-            
-            if lib == c_name and checkVersionmatch(vs, c_version):
-                cves.append((cve['id'], conf))
-    return cves
+# =============== STEP 5: PREPROCESS PATCHES: FIND PATCH SEGMENTS ==============
 
 
 class PatchSegment(namedtuple('PatchSegment', ['filename', 'pos_descriptor', 'code', 'modifications'])):
@@ -636,7 +665,10 @@ class PatchSegment(namedtuple('PatchSegment', ['filename', 'pos_descriptor', 'co
 
 def patch2segments(patch):
     '''
-    Splits a patch file into segments, one for each modified part of a file.
+    Splits a patch file into patch segments. A patch segment contains one ore more
+    modifications to one file that are spatially close to each other. For every
+    reference to a section of the modified file using '@@ <lineno>' in the patch, 
+    a new patch section is created.
     Segments are detected by the leading '@@' in the line that describes the location
     within the affected file. For each segment, this function collects the descriptor
     listed in the patch file after the '@@' as well as the code in the affected
@@ -678,7 +710,7 @@ def patch2segments(patch):
 
         if l.startswith('@@'):
             # found beginning of a patch segment
-            if pos_descriptor is not None:
+            if pos_descriptor is not None and filename:
                 segments.append(PatchSegment(filename, pos_descriptor, code, modifications))
 
             pos_descriptor = l.split('@@')[-1]
@@ -709,13 +741,17 @@ def patch2segments(patch):
             'diff --git' line starting the next segment, as produced by some diff tools
             -> Ignore everything until we find the next line indicating the position in the file
             '''
-            if pos_descriptor is not None:
+            if pos_descriptor is not None and filename:
                 segments.append(PatchSegment(filename, pos_descriptor, code, modifications))
             pos_descriptor = None
             found_patch = False
     if pos_descriptor is not None:
         segments.append(PatchSegment(filename, pos_descriptor, code, modifications))
     return segments
+
+
+# ========== STEP 6: PROCESS PATCH SEGMENTS: FIND VULNERABLE FUNCTIONS =========
+
 
 def segment2vulnfcn(segment, do_prepend=False):
     filename, pos_descriptor, code, modifications = segment
@@ -792,7 +828,18 @@ def segment2vulnfcn(segment, do_prepend=False):
 
     return res
 
+
+# ========================== PUTTING IT ALL TOGETHER ===========================
+
+
 def printOrWrite(args, msg, out):
+    '''
+    Helper function that either pretty-prints a JSON formatted program output to stdout
+    or writes the JSON to a file (not pretty-printed)
+    @param args     The CLI arguments parsed by argparse
+    @oaram msg      A message to print before dumping the JSON to stdout
+    @param out      The datastructure that will be serialized into JSON
+    '''
     if not args.output:
         print('=' * 80)
         print(msg)
@@ -802,9 +849,30 @@ def printOrWrite(args, msg, out):
             json.dump(out, f)
 
 def process(args):
+    '''
+    Implements the entire pipeline of finding the vulnerable functions of a library.
+    It includes several steps:
+     1. Fetch known CVEs for the library (see getCVEsForLib())
+     2. Fetch references for the CVEs (see getCVEReferences())
+     3. Filter out all URLs from those references which might give us a patch (see PatchPattern.testAll())
+     4. Fetch all the patches (see PatchPattern.getPatch())
+     5. Preprocess the patches: extract patch segments (see patch2segments())
+     6. Process each patch segment to find the function that was modified in it
+    
+    This CLI program can enter and leave this pipeline at several points:
+      Enter: before steps 1, 2
+      Leave: after steps 1, 2, 3, 4, 6
+    With default parameters, the program will run the pipeline until the last step.
+    @param  The CLI argiments parsed by argparse
+    '''
+    
+    # step 1: fetch known CVEs for the library
     if args.library:
         print('Fetch CVEs..')
-        cves = getCVEsForLib(args.library, version=args.version)
+        cves = getCVEsForLib(args.library,
+                             version=args.version,
+                             match_subversion=not args.no_match_subversion,
+                             match_unversioned=args.match_unversioned)
         cves = list(set(map(itemgetter(0), cves)))
     
     if args.cve:
@@ -818,13 +886,15 @@ def process(args):
         print('No CVEs found')
         return
     
+    # step 2: fetch the references for the CVEs
     print('Fetch CVE references..')
     cve2url = {cve: getCVEReferences(cve) for cve in cves}
     
-    if args.extract_urls:
+    if args.extract_references:
         printOrWrite(args, 'CVEs and referenced URLs:', cve2url)
         return
     
+    # step 3: filter out URLs that might give us a patch
     print('Filter patch URLs..')
     cve2patch_urls = {cve: PatchPattern.testAllUrls(urls) for cve, urls in cve2url.items()}
     
@@ -833,6 +903,7 @@ def process(args):
         printOrWrite(args, 'CVEs and potential patch URLs:', o)
         return
     
+    # step 4: fetch all the patches
     print('Fetch patches')
     cve2patch = {cve: {p.url: p.getPatch() for p in patch_urls} for cve, patch_urls in cve2patch_urls.items()}
 
@@ -840,29 +911,45 @@ def process(args):
         printOrWrite(args, 'CVEs and patches:', cve2patch)
         return
     
+    # step 5: preprocess patches to partition them into patch segments
+    print('Preprocess patches: extract patch segments..')
     cve2segments = {cve: list(itertools.chain(*(list(itertools.chain(*(patch2segments(p) for p in ps))) for _, ps in patches.items()))) for cve, patches in cve2patch.items()}
 
+    # step 6: process patch segments to find vulnerable functions
     print('Process patches: extract vulnerable functions..')
     cve2vuln_fcn = {cve: list(set(itertools.chain(*(segment2vulnfcn(segment) for segment in segments)))) for cve, segments in cve2segments.items()}
 
     printOrWrite(args, 'CVEs and vulnerable functions:', cve2vuln_fcn)
 
-
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Obtain patches/vulnerable  from a CVE identifier or for a specific library')
     
     grp = parser.add_argument_group('Output options')
-    grp.add_argument('--cve', '-c', help='Fetch information about an CVE identifier (CVE-2018-...)')
-    grp.add_argument('--library', '-l', default=None, help='Fetch information for a library')
-    grp.add_argument('--version', '-v', default=None, help='Fetch information for a specific version of a library')
+    grp.add_argument('--cve', '-c',
+                     help='Fetch information about an CVE identifier (CVE-2018-...)')
+    grp.add_argument('--library', '-l', default=None,
+                     help='Fetch information for a library')
+    grp.add_argument('--version', '-v', default=None,
+                     help='Fetch information for a specific version of a library')
+    
+    grp = parser.add_argument_group('Version matching options')
+    grp.add_argument('--no-match-subversion', default=False, action='store_true',
+                     help='Do not match the subversion string when matching the vulnerable configuration of CVEs with the queried librarie\'s version')
+    grp.add_argument('--match-unversioned', default=False, action='store_true',
+                     help='If no version is reported for a vulnerable configuration of a CVE, match the configuration anyway (might produce false positives)')
     
     grp = parser.add_argument_group('Output options')
-    grp.add_argument('--output', '-o', default=None, help='Output file in which to store the output (JSON format)')
+    grp.add_argument('--output', '-o', default=None,
+                     help='Output file in which to store the output (JSON format)')
     ex = parser.add_mutually_exclusive_group()
-    ex.add_argument('--extract-urls', '-eu', default=False, action='store_true', help='Retrieve URLs referenced by CVE(s) only')
-    ex.add_argument('--extract-patch-urls', '-epu', default=False, action='store_true', help='Retrieve potential patch URLs only')
-    ex.add_argument('--extract-patches', '-ep', default=False, action='store_true', help='Retrieve patches only, do not extract vulnerable functions')
-    ex.add_argument('--extract-cves', '-ec', default=False, action='store_true', help='Retrieve CVEs only')
+    ex.add_argument('--extract-references', '-er', default=False, action='store_true',
+                    help='Retrieve URLs referenced by CVE(s) only')
+    ex.add_argument('--extract-patch-urls', '-eu', default=False, action='store_true',
+                    help='Retrieve potential patch URLs only')
+    ex.add_argument('--extract-patches', '-ep', default=False, action='store_true',
+                    help='Retrieve patches only, do not extract vulnerable functions')
+    ex.add_argument('--extract-cves', '-ec', default=False, action='store_true',
+                    help='Retrieve CVEs only')
     
     args = parser.parse_args()
     
