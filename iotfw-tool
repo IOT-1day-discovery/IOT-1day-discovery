@@ -127,6 +127,23 @@ def updateSha1(filePath, args, d):
                                   ['sha1sum', '--binary', str(filePath)],
                                   RE_SHA1, args, d)
 
+# Regular expression used to extract the hash from the output of
+# `sha256sum'.
+RE_SHA256 = re.compile('^(?P<output>[0-9a-f]{64}) (?: |\\*)')
+
+def updateSha256(filePath, args, d):
+    """
+    Update the info dictionary with SHA256 hash of the file.
+
+    Parameters:
+    filePath - path to the file in question
+    args - additional user-supplied arguments
+    d - the info dictionary to update
+    """
+    return updateSubprocessOutput('sha256/hash',
+                                  ['sha256sum', '--binary', str(filePath)],
+                                  RE_SHA256, args, d)
+
 def mkElfinfoRegexp():
     """
     Constructs a regular expression for extracting ELF information
@@ -312,7 +329,8 @@ def listFiles(filePath, args, d):
        (args.elf and not updateElfInfo(filePath, args, d)) or \
        (args.fs and not updateFsInfo(filePath, args, d)) or \
        (args.md5 and not updateMd5(filePath, args, d)) or \
-       (args.sha1 and not updateSha1(filePath, args, d)):
+       (args.sha1 and not updateSha1(filePath, args, d)) or \
+       (args.sha256 and not updateSha256(filePath, args, d)):
         return ()
     return (d,)
 
@@ -486,6 +504,7 @@ def mkParserPrint(mkParser):
     parser.add_argument('--elf', action='store_true', help='load information about ELF files')
     parser.add_argument('--md5', action='store_true', help='compute MD-5 hash of the files')
     parser.add_argument('--sha1', action='store_true', help='compute SHA-1 hash of the files')
+    parser.add_argument('--sha256', action='store_true', help='compute SHA-256 hash of the files')
 
     parser.add_argument('formatstr', help='format string to use for printing')
 

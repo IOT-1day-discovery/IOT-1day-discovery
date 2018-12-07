@@ -15,7 +15,7 @@ git submodule update
 ```
 
 ## iotfw-tool
-`iotfw-tool` is the tool used to crawl and extract information about files in extracted firmware images. List of available actions with basic description can be obtained by running:
+`iotfw-tool` is the tool used to crawl and extract information about files in unpacked firmware images. List of available actions with basic description can be obtained by running:
 ```
 ./iotfw-tool --help
 ```
@@ -53,12 +53,12 @@ $ ./iotfw-tool print --firmware --fs --sha1 '{firmware/filesystem};{fs/firmware/
 ### Example 4: Getting information about vendor firmwares
 Assuming the extracted vendor firmwares are located in directory `/path/to/vendor/firmwares`, run:
 ```
-$ ./iotfw-tool print --vendor --firmware --fs --sha1 '{vendor/name};{firmware/name};{firmware/filesystem};{fs/firmware/dirname};{fs/name};{sha1/hash}' vendor /path/to/vendor/firmwares
-360;firmware1;/path/to/vendor/firmwares/firmware1/filesystem;/bin;private.cgi;4db6a1072cce2b9b7295af142f55cdedf4ca7ad4
-360;firmware1;/path/to/vendor/firmwares/firmware1/filesystem;/bin;auto_update;172ae20c49b20cc7317dedb907de28b0c5dd9dc5
-360;firmware1;/path/to/vendor/firmwares/firmware1/filesystem;/bin;cfeupdate;c58ded323cf44ce13c484c1d2980cfdfc519a15e
-360;firmware1;/path/to/vendor/firmwares/firmware1/filesystem;/bin;flash_load_default;150efe995c3e8b068fe094ce03c8219b1ec5269c
-360;firmware1;/path/to/vendor/firmwares/firmware1/filesystem;/bin;detect_dns;60574521947631797c13308bf073f0a5fb4398bd
+$ ./iotfw-tool print --vendor --firmware --fs --sha1 '{firmware/name};{firmware/filesystem};{fs/firmware/dirname};{fs/name};{sha1/hash}' vendor /path/to/vendor/firmwares
+firmware1;/path/to/vendor/firmwares/firmware1/filesystem;/bin;private.cgi;4db6a1072cce2b9b7295af142f55cdedf4ca7ad4
+firmware1;/path/to/vendor/firmwares/firmware1/filesystem;/bin;auto_update;172ae20c49b20cc7317dedb907de28b0c5dd9dc5
+firmware1;/path/to/vendor/firmwares/firmware1/filesystem;/bin;cfeupdate;c58ded323cf44ce13c484c1d2980cfdfc519a15e
+firmware1;/path/to/vendor/firmwares/firmware1/filesystem;/bin;flash_load_default;150efe995c3e8b068fe094ce03c8219b1ec5269c
+firmware1;/path/to/vendor/firmwares/firmware1/filesystem;/bin;detect_dns;60574521947631797c13308bf073f0a5fb4398bd
 ```
 
 ### Example 5: Getting information about all vendors' firmwares
@@ -119,6 +119,8 @@ $ ./iotfw-tool print --vendor --fs --firmware --sha1 --elf '{fs/fullname};{elf/m
   * `{md5/hash}` MD5 hash of the file.
 * `--sha1` SHA1 information about the file
   * `{sha1/hash}` SHA1 hash of the file.
+* `--sha256` SHA256 information about the file
+  * `{sha1/hash}` SHA256 hash of the file.
 
 ## web crawling
 ### Documentation
