@@ -81,12 +81,12 @@ phicomm;firmware2;/path/to/vendors/phicomm/firmware2/_40.extracted/_503000.extra
 ### Example 6: Getting information in a format compatible with FindUniquePackages tool
 Assuming the vendor directories are located in directory `/path/to/vendors`, run:
 ```
-$ ./iotfw-tool print --vendor --fs --firmware --sha1 --elf '{fs/fullname};{elf/machine};{elf/buildid/hashf};{elf/linkage};{elf/osversion};{elf/stripped};{elf/type};{elf/buildid/hash};{elf/interpreter};{elf/abiversion};{elf/osabi};{elf/endian};{elf/bits};{sha1/hash}' vendors /path/to/vendors
-/path/to/vendors/phicomm/_a3fb4b07ee14405adf227890a86f40abc8b4c5dd.bin.extracted/_40.extracted/_503000.extracted/filesystem/bin/igmpproxy;MIPS, MIPS-II;NULL;dynamically linked;NULL;stripped;executable;NULL;/lib/ld-uClibc.so.0;1;SYSV;LSB;32;cbf98cb9d72966833cd8e646ca9d18ec37f3cc3f
-/path/to/vendors/phicomm/_a3fb4b07ee14405adf227890a86f40abc8b4c5dd.bin.extracted/_40.extracted/_503000.extracted/filesystem/bin/arptables;MIPS, MIPS-II;NULL;dynamically linked;NULL;stripped;executable;NULL;/lib/ld-uClibc.so.0;1;SYSV;LSB;32;5cf7dfa8d35d776be294b258e1ef9794e3978a55
-/path/to/vendors/phicomm/_a3fb4b07ee14405adf227890a86f40abc8b4c5dd.bin.extracted/_40.extracted/_503000.extracted/filesystem/bin/openssl;MIPS, MIPS-II;NULL;dynamically linked;NULL;stripped;executable;NULL;/lib/ld-uClibc.so.0;1;SYSV;LSB;32;9c81c236a6ebc7a8b37d31a76cb67732f7dffe6c
-/path/to/vendors/phicomm/_a3fb4b07ee14405adf227890a86f40abc8b4c5dd.bin.extracted/_40.extracted/_503000.extracted/filesystem/bin/guest_control;MIPS, MIPS-II;NULL;dynamically linked;NULL;stripped;executable;NULL;/lib/ld-uClibc.so.0;1;SYSV;LSB;32;65a51e951eb0b5186fe1e49bc12afbd331114f17
-/path/to/vendors/phicomm/_a3fb4b07ee14405adf227890a86f40abc8b4c5dd.bin.extracted/_40.extracted/_503000.extracted/filesystem/bin/internet_check;MIPS, MIPS-II;NULL;dynamically linked;NULL;stripped;executable;NULL;/lib/ld-uClibc.so.0;1;SYSV;LSB;32;d58b7b77cde024b0215e18b60b278f64994b82d2
+$ ./iotfw-tool print --vendor --fs --firmware --sha1 --elf '{fs/fullname};{elf/machine};{elf/buildid/hashf};{elf/linkage};{elf/osversion};{elf/stripped};{elf/type};{elf/buildid/hash};{elf/interpreter};{elf/abiversion};{elf/osabi};{elf/endian};{elf/bits};{sha1/hash};{firmware/name}' vendors /path/to/vendors
+/path/to/vendors/phicomm/_a3fb4b07ee14405adf227890a86f40abc8b4c5dd.bin.extracted/_40.extracted/_503000.extracted/filesystem/bin/igmpproxy;MIPS, MIPS-II;NULL;dynamically linked;NULL;stripped;executable;NULL;/lib/ld-uClibc.so.0;1;SYSV;LSB;32;cbf98cb9d72966833cd8e646ca9d18ec37f3cc3f;_a3fb4b07ee14405adf227890a86f40abc8b4c5dd.bin.extracted
+/path/to/vendors/phicomm/_a3fb4b07ee14405adf227890a86f40abc8b4c5dd.bin.extracted/_40.extracted/_503000.extracted/filesystem/bin/arptables;MIPS, MIPS-II;NULL;dynamically linked;NULL;stripped;executable;NULL;/lib/ld-uClibc.so.0;1;SYSV;LSB;32;5cf7dfa8d35d776be294b258e1ef9794e3978a55;_a3fb4b07ee14405adf227890a86f40abc8b4c5dd.bin.extracted
+/path/to/vendors/phicomm/_a3fb4b07ee14405adf227890a86f40abc8b4c5dd.bin.extracted/_40.extracted/_503000.extracted/filesystem/bin/openssl;MIPS, MIPS-II;NULL;dynamically linked;NULL;stripped;executable;NULL;/lib/ld-uClibc.so.0;1;SYSV;LSB;32;9c81c236a6ebc7a8b37d31a76cb67732f7dffe6c;_a3fb4b07ee14405adf227890a86f40abc8b4c5dd.bin.extracted
+/path/to/vendors/phicomm/_a3fb4b07ee14405adf227890a86f40abc8b4c5dd.bin.extracted/_40.extracted/_503000.extracted/filesystem/bin/guest_control;MIPS, MIPS-II;NULL;dynamically linked;NULL;stripped;executable;NULL;/lib/ld-uClibc.so.0;1;SYSV;LSB;32;65a51e951eb0b5186fe1e49bc12afbd331114f17;_a3fb4b07ee14405adf227890a86f40abc8b4c5dd.bin.extracted
+/path/to/vendors/phicomm/_a3fb4b07ee14405adf227890a86f40abc8b4c5dd.bin.extracted/_40.extracted/_503000.extracted/filesystem/bin/internet_check;MIPS, MIPS-II;NULL;dynamically linked;NULL;stripped;executable;NULL;/lib/ld-uClibc.so.0;1;SYSV;LSB;32;d58b7b77cde024b0215e18b60b278f64994b82d2;_a3fb4b07ee14405adf227890a86f40abc8b4c5dd.bin.extracted
 ```
 
 ### List of available switches and format variables
@@ -375,7 +375,7 @@ curl -X GET \
 }
 ```
 #### GET package/name/{packageName}
-- [ ] fetches packages associated with this hash (in progress)
+- [ ] fetches packages associated with this name (in progress)
 -example
 ```bash
 curl -X GET \
@@ -399,7 +399,46 @@ curl -X GET \
     "Description":  "OpenSSH client."
 }
 ```
-
+#### GET match/{fileSysyemKey}
+- note this function doesn't scale. You should do matches offline. (for demo use only)
+- [x] fetches the file sysyem to get all binaries and then iterates through that list to find a package match
+-example
+```bash
+curl -X GET \
+  http://localhost:8080/match/_416089fc947e57a975cab3d8bc76fd84b80c9c5b.bin.extracted
+```
+- output
+- output
+```json
+{
+    "files": [
+        {
+            "name": "/usr/bin/ssh",
+            "sha1": "4876d0e57e7d35b9596899b4955989f0e69ef9d3"
+        },
+        {
+            "name": "/etc/ssh/ssh_config",
+            "sha1": "f44ea9ffb7e15bdb234ffc4f23bdb18823f3d89c"
+        },
+        {
+            "name": "/conffiles",
+            "sha1": "1d646f8246fad07f994e4f37d23b33b1dfd2e045"
+        },
+        {
+            "name": "/postrm",
+            "sha1": "e21338a5930c6bf8bfb2294a201e5f580a20b690"
+        }
+    ],
+    "codeName": "barrier_breaker",
+    "osVersion": "14.07",
+    "arch": "ramips",
+    "fileName": "openssh-client_6.6p1-1_ramips_24kec.ipk",
+    "pkgSha1": "b31414f7735c8cf338fe975ad8cab8fb004963a5",
+    "pkgSha256": "13a1ea7df1e038a338e78c711bd014c0315b4efbe6ad0a02d0956f9caa3f2817",
+    "pkgmd5": "7aaefb626db761fde5502c67e94a9842"
+},
+{"many" : "more" }
+```
 ## lib2vuln tool
 
 This tool can take in a CVE number or software name and version and finds CVE's associated with it, links to patches, the patches themselves and vulnerable functions. 
