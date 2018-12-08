@@ -8,6 +8,7 @@
 - python3 packages:
   - beautifulsoup4
   - libclang
+  - requests
 
 ## Initialize Submodule
 Follow the [Git Book](https://git-scm.com/book/en/v2/Git-Tools-Submodules#_cloning_submodules) by Scott Chacon and Ben Straub, on how to initilize the submodule:
