@@ -6,7 +6,7 @@
 - node 10.12 or above
 - python3 (tested with python 3.7 and python 3.4)
 - python3 packages:
-  - BeautifulSoup
+  - beautifulsoup4
   - libclang
 
 ## Initialize Submodule
