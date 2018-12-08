@@ -3,6 +3,7 @@ import argparse
 import json
 import os
 import pathlib
+import requests
 import subprocess
 import sys
 import tempfile
@@ -27,7 +28,7 @@ class Lib2VulnFakeArgs:
         self.extract_patch_urls = False
         self.extract_patches = False
         self.extract_cves = False
-        
+
         for k, v in args.items():
             setattr(self, k, v)
 
@@ -70,10 +71,22 @@ def process(args):
                 pass
 
     # step 2: compare ELF binaries to database of packages/binaries
-    # TODO
-    # expected results: libraries = list of tuples (library name, library version)
     libraries = []
-    
+    req = requests.get('%s/match/%s' % (args.server, args.path.split('/')[-1]))
+    assert(req.status_code == 200)
+
+    j = req.json()
+    assert(j)
+
+    for lib in j:
+        req = requests.get('%s/package/name/%s' % (args.server, lib['fileName']))
+        assert(req.status_code == 200)
+
+        libj = req.json()
+        assert(libj)
+
+        libraries.append((libj['Package'], libj['Version']))
+
     # step 3: match detected packages / OSS libraries against CVE database to detect vulnerable functions
     lib2vulns = {}
     for lib, version in libraries:
@@ -84,10 +97,10 @@ def process(args):
         except Exception as e:
             # just to be sure, who knows what's stored in the CVE database / patch files
             print('Exception in lib2vuln:', e)
-    
+
     if os.path.isfile(TMP_FILE):
         os.unlink(TMP_FILE)
-    
+
     if not args.output:
         print('=' * 80)
         print('Vulnerable functions in firmware image:')
@@ -99,6 +112,7 @@ def process(args):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Identifies vulnerable functions in an extracted firmware image')
     parser.add_argument('path', required=True, help='Path to the extracted firmware image')
+    parser.add_argument('--server', '-s', default='127.0.0.1', help='Address of the server that hosts the database API for known packages. Default: 127.0.0.1')
     parser.add_argument('output', help='Path to file where results should be stored')
 
     # TODO: make me a parser group
@@ -111,13 +125,13 @@ if __name__ == '__main__':
     parser.add_argument('--import-json-to-mdb-sh-path',
                         default='./packageparserweb/tools/importJsonToMdb.sh',
                         help='Path to the importJsonToMdb.sh script')
-    
+
     grp = parser.add_argument_group(title='lib2vuln related options')
     grp.add_argument('--no-match-subversion', default=False, action='store_true',
                      help='Do not match the subversion string when matching the vulnerable configuration of CVEs with the queried librarie\'s version')
     grp.add_argument('--match-unversioned', default=False, action='store_true',
                      help='If no version is reported for a vulnerable configuration of a CVE, match the configuration anyway (might produce false positives)')
-    
+
     # TODO: add arguments for other scripts, too (if required)
-    
+
     sys.exit(process(parser.parse_args()))
