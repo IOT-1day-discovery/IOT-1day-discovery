@@ -1,6 +1,6 @@
-# IOT-1day-discovery
+# IoT 1day discovery
 
-## dependencies
+## Dependencies
 - mongodb
 - .net47 (using mono but any 47 will do)
 - node 10.12 or above
@@ -16,6 +16,9 @@ cd ./packageparserweb
 git submodule init
 git submodule update
 ```
+
+Python dependencies can be installed with pip: `pip install -r requirements.txt`.
+However, `libclang` cannot be installed via pip since it is not managed in its repositories. In our experience, `libclang` is installed with clang/llvm. In order to be able to use the python interface for `libclang`, the python's libclang (clang.index) must accessible via `PYTHONPATH` and the C library has to reside within the `LD_LIBRARY_PATH`
 
 ## iotfw-tool
 `iotfw-tool` is the tool used to crawl and extract information about files in unpacked firmware images. List of available actions with basic description can be obtained by running:
