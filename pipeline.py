@@ -34,7 +34,7 @@ class Lib2VulnFakeArgs:
 
 def process(args):
     # The formatstr accepted by FindUniquePackages.exe
-    formatstr = '{fs/fullname};{elf/machine};{elf/buildid/hashf};{elf/linkage};{elf/osversion};{elf/stripped};{elf/type};{elf/buildid/hash};{elf/interpreter};{elf/abiversion};{elf/osabi};{elf/endian};{elf/bits};{sha1/hash}'
+    formatstr = '{fs/fullname};{elf/machine};{elf/buildid/hashf};{elf/linkage};{elf/osversion};{elf/stripped};{elf/type};{elf/buildid/hash};{elf/interpreter};{elf/abiversion};{elf/osabi};{elf/endian};{elf/bits};{sha1/hash};{firmware/name}'
     # The output file of FindUniquePackages.exe
     binaryVariationsPath = pathlib.Path(args.find_unique_packages_path).parent / 'BinaryVariations.json'
 
