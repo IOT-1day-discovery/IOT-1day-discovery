@@ -375,7 +375,7 @@ curl -X GET \
 }
 ```
 #### GET package/name/{packageName}
-- [ ] fetches packages associated with this hash (in progress)
+- [ ] fetches packages associated with this name (in progress)
 -example
 ```bash
 curl -X GET \
@@ -399,7 +399,46 @@ curl -X GET \
     "Description":  "OpenSSH client."
 }
 ```
-
+#### GET package/match/{fileSysyemKey}
+- note this function doesn't scale. You should do matches offline. (for demo use only)
+- [x] fetches the file sysyem to get all binaries and then iterates through that list to find a package match
+-example
+```bash
+curl -X GET \
+  http://localhost:8080/match/_416089fc947e57a975cab3d8bc76fd84b80c9c5b.bin.extracted
+```
+- output
+- output
+```json
+{
+    "files": [
+        {
+            "name": "/usr/bin/ssh",
+            "sha1": "4876d0e57e7d35b9596899b4955989f0e69ef9d3"
+        },
+        {
+            "name": "/etc/ssh/ssh_config",
+            "sha1": "f44ea9ffb7e15bdb234ffc4f23bdb18823f3d89c"
+        },
+        {
+            "name": "/conffiles",
+            "sha1": "1d646f8246fad07f994e4f37d23b33b1dfd2e045"
+        },
+        {
+            "name": "/postrm",
+            "sha1": "e21338a5930c6bf8bfb2294a201e5f580a20b690"
+        }
+    ],
+    "codeName": "barrier_breaker",
+    "osVersion": "14.07",
+    "arch": "ramips",
+    "fileName": "openssh-client_6.6p1-1_ramips_24kec.ipk",
+    "pkgSha1": "b31414f7735c8cf338fe975ad8cab8fb004963a5",
+    "pkgSha256": "13a1ea7df1e038a338e78c711bd014c0315b4efbe6ad0a02d0956f9caa3f2817",
+    "pkgmd5": "7aaefb626db761fde5502c67e94a9842"
+},
+{"many" : "more" }
+```
 ## lib2vuln tool
 
 This tool can take in a CVE number or software name and version and finds CVE's associated with it, links to patches, the patches themselves and vulnerable functions. 
