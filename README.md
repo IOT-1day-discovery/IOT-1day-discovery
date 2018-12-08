@@ -247,12 +247,12 @@ curl -X GET \
 - examples:
 ```bash
 curl -X GET \
-  http://localhost:8080/binary/ipks/sha1/f44ea9ffb7e15bdb234ffc4f23bdb18823f3d89c \
+  http://localhost:8080/binary/ipks/sha1/f44ea9ffb7e15bdb234ffc4f23bdb18823f3d89c
 ```
 or
 ```bash
 curl -X GET \
-  http://localhost:8080/binary/ipks/sha1/4876d0e57e7d35b9596899b4955989f0e69ef9d3 \
+  http://localhost:8080/binary/ipks/sha1/4876d0e57e7d35b9596899b4955989f0e69ef9d3
 ```
 or any of the other sha1s found in files:
 - output
@@ -276,17 +276,23 @@ or any of the other sha1s found in files:
                 "sha1": "e21338a5930c6bf8bfb2294a201e5f580a20b690"
             }
         ],
-        "descriptors": [
-            "ipks",
-            "barrier_breaker",
-            "14.07",
-            "ramips",
-            "openssh-client_6.6p1-1_ramips_24kec.ipk"
-        ]
+        "codeName": "barrier_breaker",
+        "osVersion": "14.07",
+        "arch": "ramips",
+        "fileName": "openssh-client_6.6p1-1_ramips_24kec.ipk",
+        "pkgSha1": "b31414f7735c8cf338fe975ad8cab8fb004963a5",
+        "pkgSha256": "13a1ea7df1e038a338e78c711bd014c0315b4efbe6ad0a02d0956f9caa3f2817",
+        "pkgmd5": "7aaefb626db761fde5502c67e94a9842"
     }
 ```
 #### GET binary/ipkNames/{ipkName}
-- [ ] fetches binaries associated with this name. (in progress)
+- [x] fetches binaries associated with this name.
+- examples:
+```bash
+curl -X GET \
+  http://localhost:8080/binary/ipkNames/openssh-client_6.6p1-1_ramips_24kec.ipk
+```
+- output: same as above
 #### GET package/sha1/{hash}
 - [x] fetches packages associated with this hash
 -example
