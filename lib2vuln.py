@@ -560,6 +560,11 @@ class CGit(PatchPattern):
 
 
 class Gitweb1(PatchPattern):
+    '''
+    Links to gitweb can take 3 different forms, this is form one:
+    Patches from links to commits on gitweb of this form can be retrieved by replacing the
+    'a=(commit|commitdiff|blob)'' parameter with 'a=patch'
+    '''
     # http(s)://some-domain.com/some/path/?some=args;more=args;p=required;a=not-required;h=required;order=not-relevant
     URL_PATTERN = r'^((?:https?://)?.+?\?(?:.*(?:;|(?<=\?))p=[^;]+()|.*(?:;|(?<=\?))a=(?:commit(?:diff)?|patch|blob)()|.*(?:;|(?<=\?))h=[^;]+()){2,3}(?:\2|\3)\4.*)$'
     URL_REPLACE_STR = r'(?:(h=\w+)|a=(commit(?:diff)?|patch|blob))'
@@ -567,6 +572,11 @@ class Gitweb1(PatchPattern):
 
 
 class Gitweb2(PatchPattern):
+    '''
+    Links to gitweb can take 3 different forms, this is form one:
+    Patches from links to commits on gitweb of this form can be retrieved by replacing the
+    '/(commit|commitdiff|blob)/'' with '/patch/''
+    '''
     # http(s)://some-domain-but-not-(www.)github.com/some-name/(commit|patch|blob)/what-commit-or-patch
     URL_PATTERN = r'^((?:https?://)?(?<!(?:www\.)github\.com)(?<!:)/.+/(?:commit(?:diff)?|commit|patch|blob)/[^?]+)$'
     URL_REPLACE_STR = r'/(commit(?:diff)?|diff|patch|blob)/'
@@ -574,6 +584,11 @@ class Gitweb2(PatchPattern):
 
 
 class Gitweb3(PatchPattern):
+    '''
+    Links to gitweb can take 3 different forms, this is form one:
+    Patches from links to commits on gitweb of this form can be retrieved by replacing the
+    'a=blobdiff' parameter with 'a=blobdiff_plain'
+    '''
     # http(s)://some-domain.com/any/path/?some=parameters;p=required-or;a=blobdiff(_plain)?;either-p-or-a=required;h=required
     URL_PATTERN = r'^((?:https?://)?.+?\?(?:.*(?:;|(?<=\?))p=[^;]+()|.*(?:;|(?<=\?))a=blobdiff(?:_plain)?()|.*(?:;|(?<=\?))h=[^;]+()){2,3}(?:\2|\3)\4.*)$'
     URL_REPLACE_STR = r'a=blobdiff(?:_plain)?'
@@ -581,6 +596,10 @@ class Gitweb3(PatchPattern):
 
 
 class Hgweb(PatchPattern):
+    '''
+    Patches from links to commits on hgweb can be fetched by replacing
+    '/(raw-rev|diff|comparison)/' with '/diff/'
+    '''
     # http(s)://some-domain.com/any/path/(raw-diff|raw-rev|diff|comparison)/
     URL_PATTERN = r'^((?:https?://)?.+/(?:raw-diff|raw-rev|diff|comparison)/.+)$'
     URL_REPLACE_STR = r'/(raw-diff|raw-rev|diff|comparison)/'
@@ -588,6 +607,10 @@ class Hgweb(PatchPattern):
 
 
 class Loggerhead(PatchPattern):
+    '''
+    Patches from links to commits on loggerhead can be fetched by replacing
+    '/revision/' with '/diff/'
+    '''
     # http(s)://some-domain.com/any/path/(diff|revision)/
     URL_PATTERN = r'^((?:https?://)?.+/(?:diff|revision)/.+)$'
     URL_REPLACE_STR = r'/(diff|revision)/'
@@ -595,12 +618,19 @@ class Loggerhead(PatchPattern):
 
 
 class Patchwork(PatchPattern):
+    '''
+    Patches from links to commits on patchwork can be fetched by appending '/raw/'
+    '''
     # http(s)://some-domain.com/any/path/patch/commit-identifier
     URL_PATTERN = r'^((?:https?://)?.+/patch/\d+)(?:/[^/])?/?$'
     URL_REPLACE_WITH = '%s/raw/'
 
 
 class Redmine(PatchPattern):
+    '''
+    Patches from links to commits on redmine can be fetched by adding the GET parameter
+    'format=diff'
+    '''
     # http(s)://some-domain.com/any/path/repository/revisions/commit-identifier
     URL_PATTERN = r'^((?:https?://)?.+/repository/revisions/.+)$'
     URL_REPLACE_STR = r'(/revisions/[^?]+(\?.*)?)'
@@ -608,6 +638,10 @@ class Redmine(PatchPattern):
 
 
 class Sourceforge(PatchPattern):
+    '''
+    Patches from links to commits on sourceforge can be fetched by setting the GET parameter
+    'barediff=<commit>' instead of 'diff=<commit>'
+    '''
     # http(s)://some-domain.com/any/path/p/?some=args&(diff|bardiff)=commit-identifier&other-args=why-not
     URL_PATTERN = r'^((?:https?://)?.+/p/.+\?(?:.+&)?(?:diff|barediff)=\w+(?:&.+)?)$'
     URL_REPLACE_STR = r'([?&])diff='
@@ -618,6 +652,10 @@ class Sourceforge(PatchPattern):
 
 
 class BugzillaAttachment(PatchPattern):
+    '''
+    Patches from links to diffs in bugzilla attachments can be fetched by setting the GET parameters
+    'action=diff' and 'format=raw'
+    '''
     # http(s)://some-domain.com/any/path/attachment.cgi?some=args&id=required&other-args=why-not
     URL_PATTERN = r'^((?:https?://)?.+/attachment\.cgi\?(?:.+&)?id=\d+(?:&.+)?)$'
     URL_REPLACE_STR = r'(?:(attachment\.cgi\?)|action=(diff|edit)?)'
@@ -625,6 +663,9 @@ class BugzillaAttachment(PatchPattern):
 
 
 class Bugzilla(PatchPattern):
+    '''
+    Patch links can be found from bugzilla bug tracker
+    '''
     # http(s)://some-domain.com/any/path/show_bug.cgi?some=args&id=required&other-args=why-not
     URL_PATTERN = r'^((?:https?://)?.+/show_bug\.cgi\?(?:.+&)?id=\d+(?:&.+)?)$'
     LINK_SELECTOR = '.bz_comment_table .bz_comment_text a'
