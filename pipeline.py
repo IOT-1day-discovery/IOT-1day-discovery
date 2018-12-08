@@ -111,7 +111,7 @@ def process(args):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Identifies vulnerable functions in an extracted firmware image')
-    parser.add_argument('path', required=True, help='Path to the extracted firmware image')
+    parser.add_argument('path', help='Path to the extracted firmware image')
     parser.add_argument('--server', '-s', default='127.0.0.1', help='Address of the server that hosts the database API for known packages. Default: 127.0.0.1')
     parser.add_argument('output', help='Path to file where results should be stored')
 
