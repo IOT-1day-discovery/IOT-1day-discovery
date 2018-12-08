@@ -39,6 +39,7 @@ def process(args):
     # The output file of FindUniquePackages.exe
     binaryVariationsPath = pathlib.Path(args.find_unique_packages_path).parent / 'BinaryVariations.json'
 
+    print('Collect file hashes..')
     with tempfile.NamedTemporaryFile(suffix='.csv') as tempcsvf:
         try:
             subprocess.check_call(
@@ -71,6 +72,7 @@ def process(args):
                 pass
 
     # step 2: compare ELF binaries to database of packages/binaries
+    print('Check for matches with DB..')
     libraries = []
     req = requests.get('%s/match/%s' % (args.server, args.path.split('/')[-1]))
     assert(req.status_code == 200)
@@ -78,6 +80,7 @@ def process(args):
     j = req.json()
     assert(j)
 
+    print('Collect library names and versions..')
     for lib in j:
         req = requests.get('%s/package/name/%s' % (args.server, lib['fileName']))
         assert(req.status_code == 200)
@@ -113,7 +116,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Identifies vulnerable functions in an extracted firmware image')
     parser.add_argument('path', help='Path to the extracted firmware image')
     parser.add_argument('--server', '-s', default='127.0.0.1', help='Address of the server that hosts the database API for known packages. Default: 127.0.0.1')
-    parser.add_argument('output', help='Path to file where results should be stored')
+    parser.add_argument('output', default=None, help='Path to file where results should be stored')
 
     # TODO: make me a parser group
     parser.add_argument('--iotfw-tool-path',
