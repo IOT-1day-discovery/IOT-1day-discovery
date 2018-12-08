@@ -8,7 +8,7 @@ import subprocess
 import sys
 import tempfile
 
-import lib2vuln as l2v
+#import lib2vuln as l2v
 
 
 TMP_FILE = 'tmp_results'
@@ -37,7 +37,7 @@ def process(args):
     # The formatstr accepted by FindUniquePackages.exe
     formatstr = '{fs/fullname};{elf/machine};{elf/buildid/hashf};{elf/linkage};{elf/osversion};{elf/stripped};{elf/type};{elf/buildid/hash};{elf/interpreter};{elf/abiversion};{elf/osabi};{elf/endian};{elf/bits};{sha1/hash};{firmware/name}'
     # The output file of FindUniquePackages.exe
-    binaryVariationsPath = pathlib.Path(args.find_unique_packages_path).parent / 'BinaryVariations.json'
+    binaryVariationsPath = 'BinaryVariations.json'
 
     print('Collect file hashes..')
     with tempfile.NamedTemporaryFile(suffix='.csv') as tempcsvf:
@@ -53,11 +53,14 @@ def process(args):
 
         try:
             try:
+                print(tempcsvf.name)
                 subprocess.check_call(['mono', args.find_unique_packages_path, tempcsvf.name])
             except subprocess.CalledProcessError as e:
                 print('{} failed, aborting'.format(args.find_unique_packages_path), file=sys.stderr)
                 return -1
-
+            tempcsvf.flush()
+            with open(tempcsvf.name, 'rb') as f:
+                print(f.read())
             try:
                 subprocess.check_call(
                     ['mongoimport', '--jsonArray', '-d', 'PackageParserWeb', '-c', 'BinaryVariations',
@@ -67,10 +70,11 @@ def process(args):
                 return -1
         finally:
             try:
-                binaryVariationsPath.unlink()
+                os.unlink(binaryVariationsPath)
             except FileNotFoundError as e:
                 pass
 
+    return
     # step 2: compare ELF binaries to database of packages/binaries
     print('Check for matches with DB..')
     libraries = []
@@ -123,7 +127,7 @@ if __name__ == '__main__':
                         default='./iotfw-tool',
                         help='Path to the iotfw-tool executable')
     parser.add_argument('--find-unique-packages-path',
-                        default='./packageparserweb/FindUniquePackages/bin/Debug/FindUniquePackages.exe',
+                        default='packageparserweb/FindUniquePackages/bin/Debug/FindUniquePackages.exe',
                         help='Path to the FindUniquePackages.exe executable')
     parser.add_argument('--import-json-to-mdb-sh-path',
                         default='./packageparserweb/tools/importJsonToMdb.sh',
