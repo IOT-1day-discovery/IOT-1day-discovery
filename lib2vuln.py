@@ -33,19 +33,19 @@ def checkVersionmatch(v_query, v_config, match_subversion=True, match_unversione
     '''
     if not v_query or (match_unversioned and not v_config):
         return True
-    
+
     v_config = v_config or [None]
-    
+
     # Cases 1, 2 did not apply, so check for case 3: main version need to match
     if v_query[0] != v_config[0]:
         return False
-    
+
     if not match_subversion:
         return True
-    
+
     # filter out wildcards
     v_config = list(filter(lambda x: x and x != '*', v_config))
-    
+
     l = min(len(v_query), len(v_config))
     return v_query[:l] == v_config[:l]
 
@@ -57,9 +57,9 @@ def getCVEsForLib(lib,
     req = requests.get('http://cve.circl.lu/api/search/%s' % lib, headers={'User-Agent': userAgent})
     if req.status_code != 200:
         raise Exception('Cannot fetch CVE details for %s' % lib)
-    
+
     vs = None if not version else version.split('-')
-    
+
     cves = []
     json = req.json()
     for cve in json['data']:
@@ -69,8 +69,8 @@ def getCVEsForLib(lib,
                 # invalid configuration not containing a software name
                 continue
             _, _, _, _, c_name, *c_version = v
-            
-            
+
+
             if lib == c_name and checkVersionmatch(vs,
                                                    c_version,
                                                    match_subversion=match_subversion,
@@ -116,7 +116,7 @@ class PatchPattern:
     General interface for matching URLs referenced by CVEs. The following attributes
     can / must be overwritten by subclasses implementing this interface.
     '''
-    
+
     '''
     This regular expression has to be overwritten by each subclass. It is matched against
     a URL in order to determine whether a URL is in a certain class of URLS for
@@ -126,13 +126,13 @@ class PatchPattern:
     the actual patch from (also see URL_REPLACE_STR and URL_REPLACE_WITH).
     '''
     URL_PATTERN = None
-    
+
     '''
     If specified, this regular expression will be used to replace parts of the matched URL.
     In this case, URL_REPLACE_WITH will be used as the replacement.
     '''
     URL_REPLACE_STR = None
-    
+
     '''
     This field serves two purposes. First, if URL_REPLACE_STR is specified, it will
     be used as replacement when building the URL of the patch file. In this case,
@@ -899,14 +899,14 @@ def process(args):
      4. Fetch all the patches (see PatchPattern.getPatch())
      5. Preprocess the patches: extract patch segments (see patch2segments())
      6. Process each patch segment to find the function that was modified in it
-    
+
     This CLI program can enter and leave this pipeline at several points:
       Enter: before steps 1, 2
       Leave: after steps 1, 2, 3, 4, 6
     With default parameters, the program will run the pipeline until the last step.
     @param  The CLI argiments parsed by argparse
     '''
-    
+
     # step 1: fetch known CVEs for the library
     if args.library:
         print('Fetch CVEs..')
@@ -915,36 +915,36 @@ def process(args):
                              match_subversion=not args.no_match_subversion,
                              match_unversioned=args.match_unversioned)
         cves = sorted(set(map(itemgetter(0), cves)))
-    
+
     if args.cve:
         cves = [args.cve]
-    
+
     if args.extract_cves:
         printOrWrite(args, 'CVEs:', cves)
         return
-    
+
     if not cves:
         print('No CVEs found')
         return
-    
+
     # step 2: fetch the references for the CVEs
     print('Fetch CVE references..')
     cve2url = {cve: getCVEReferences(cve) for cve in cves}
-    
+
     if args.extract_references:
         printOrWrite(args, 'CVEs and referenced URLs:', cve2url)
         return
-    
+
     # step 3: filter out URLs that might give us a patch
     print('Filter patch URLs..')
     url_sorter = lambda url: url.url
     cve2patch_urls = {cve: sorted(PatchPattern.testAllUrls(urls), key=url_sorter) for cve, urls in cve2url.items()}
-    
+
     if args.extract_patch_urls:
         o = {cve: [purl.url for purl in purls] for cve, purls in cve2patch_urls.items()}
         printOrWrite(args, 'CVEs and potential patch URLs:', o)
         return
-    
+
     # step 4: fetch all the patches
     print('Fetch patches')
     cve2patch = {cve: {p.url: p.getPatch() for p in patch_urls} for cve, patch_urls in cve2patch_urls.items()}
@@ -952,7 +952,7 @@ def process(args):
     if args.extract_patches:
         printOrWrite(args, 'CVEs and patches:', cve2patch)
         return
-    
+
     # step 5: preprocess patches to partition them into patch segments
     print('Preprocess patches: extract patch segments..')
     cve2segments = {cve: sorted(itertools.chain(*(sorted(itertools.chain(*(patch2segments(p) for p in ps))) for _, ps in patches.items()))) for cve, patches in cve2patch.items()}
@@ -965,7 +965,7 @@ def process(args):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Obtain CVE/patch urls/patches/vulnerable functions for a CVE or for a specific library')
-    
+
     grp = parser.add_argument_group('Output options')
     grp.add_argument('--cve', '-c',
                      help='Fetch information about an CVE identifier (CVE-2018-...)')
@@ -973,13 +973,13 @@ if __name__ == '__main__':
                      help='Fetch information for a library')
     grp.add_argument('--version', '-v', default=None,
                      help='Fetch information for a specific version of a library')
-    
+
     grp = parser.add_argument_group('Version matching options')
     grp.add_argument('--no-match-subversion', default=False, action='store_true',
                      help='Do not match the subversion string when matching the vulnerable configuration of CVEs with the queried librarie\'s version')
     grp.add_argument('--match-unversioned', default=False, action='store_true',
                      help='If no version is reported for a vulnerable configuration of a CVE, match the configuration anyway (might produce false positives)')
-    
+
     grp = parser.add_argument_group('Output options')
     grp.add_argument('--output', '-o', default=None,
                      help='Output file in which to store the output (JSON format)')
@@ -992,12 +992,12 @@ if __name__ == '__main__':
                     help='Retrieve patches only, do not extract vulnerable functions')
     ex.add_argument('--extract-cves', '-ec', default=False, action='store_true',
                     help='Retrieve CVEs only')
-    
+
     args = parser.parse_args()
-    
+
     if not args.cve and not args.library:
         print('No input given')
         parser.print_help()
         exit(1)
-    
+
     process(args)
