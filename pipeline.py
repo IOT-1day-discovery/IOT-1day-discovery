@@ -1,12 +1,32 @@
 #!/usr/bin/python3
 import argparse
+import json
 import os
 import pathlib
 import subprocess
 import sys
 import tempfile
 
-from lib2vuln import *
+import lib2vuln as l2v
+
+class Lib2VulnFakeArgs:
+    # Let's just ignore this piece of awful engineering..
+    # We'll do it better next time, when we have more time.
+    def __init__(self, args):
+        cve = None
+        library = None
+        version = None
+        no_match_subversion = False
+        match_unversioned = False
+        output = None
+        extract_references = False
+        extract_patch_urls = False
+        extract_patches = False
+        extract_cves = False
+        
+        for k, v in args.items():
+            setattr(self, k, v)
+
 
 def process(args):
     # The formatstr accepted by FindUniquePackages.exe
@@ -47,16 +67,37 @@ def process(args):
 
     # step 2: compare ELF binaries to database of packages/binaries
     # TODO
+    # expected results: libraries = list of tuples (library name, library version)
+    libraries = []
     
     # step 3: match detected packages / OSS libraries against CVE database to detect
     #         vulnerable functions
     # TODO
+    
+    lib2vulns = {}
+    for lib, version in libraries:
+        args = Lib2VulnFakeArgs({'output': 'tmp_results', 'library': lib, 'version': version})
+        try:
+            l2v.process(args)
+            lib2vulns['%s (%s)' % (lib, version)] = json.parse('tmp_results')
+        except Exception as e:
+            # just to be sure, who knows what's stored in the CVE database / patch files
+            print('Exception in lib2vuln:', e)
+    
+    if not args.output:
+        print('=' * 80)
+        print('Vulnerable functions in firmware image:')
+        print(json.dumps(lib2vulns, indent=4))
+    else:
+        json.dump(lib2vulns)
     return 0
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Identifies vulnerable functions in an extracted firmware image')
     parser.add_argument('path', help='Path to the extracted firmware image')
+    parser.add_argument('output', help='Path to file where results should be stored')
 
+    # TODO: make me a parser group
     parser.add_argument('--iotfw-tool-path',
                         default='./iotfw-tool',
                         help='Path to the iotfw-tool executable')
