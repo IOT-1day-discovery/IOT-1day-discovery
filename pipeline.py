@@ -9,20 +9,24 @@ import tempfile
 
 import lib2vuln as l2v
 
+
+TMP_FILE = 'tmp_results'
+
+
 class Lib2VulnFakeArgs:
     # Let's just ignore this piece of awful engineering..
     # We'll do it better next time, when we have more time.
     def __init__(self, args):
-        cve = None
-        library = None
-        version = None
-        no_match_subversion = False
-        match_unversioned = False
-        output = None
-        extract_references = False
-        extract_patch_urls = False
-        extract_patches = False
-        extract_cves = False
+        self.cve = None
+        self.library = None
+        self.version = None
+        self.no_match_subversion = False
+        self.match_unversioned = False
+        self.output = None
+        self.extract_references = False
+        self.extract_patch_urls = False
+        self.extract_patches = False
+        self.extract_cves = False
         
         for k, v in args.items():
             setattr(self, k, v)
@@ -70,19 +74,19 @@ def process(args):
     # expected results: libraries = list of tuples (library name, library version)
     libraries = []
     
-    # step 3: match detected packages / OSS libraries against CVE database to detect
-    #         vulnerable functions
-    # TODO
-    
+    # step 3: match detected packages / OSS libraries against CVE database to detect vulnerable functions
     lib2vulns = {}
     for lib, version in libraries:
-        args = Lib2VulnFakeArgs({'output': 'tmp_results', 'library': lib, 'version': version})
+        args = Lib2VulnFakeArgs({'output': TMP_FILE, 'library': lib, 'version': version})
         try:
             l2v.process(args)
-            lib2vulns['%s (%s)' % (lib, version)] = json.parse('tmp_results')
+            lib2vulns['%s (%s)' % (lib, version)] = json.parse(TMP_FILE)
         except Exception as e:
             # just to be sure, who knows what's stored in the CVE database / patch files
             print('Exception in lib2vuln:', e)
+    
+    if os.path.isfile(TMP_FILE):
+        os.unlink(TMP_FILE)
     
     if not args.output:
         print('=' * 80)
@@ -94,7 +98,7 @@ def process(args):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Identifies vulnerable functions in an extracted firmware image')
-    parser.add_argument('path', help='Path to the extracted firmware image')
+    parser.add_argument('path', required=True, help='Path to the extracted firmware image')
     parser.add_argument('output', help='Path to file where results should be stored')
 
     # TODO: make me a parser group
