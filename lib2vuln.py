@@ -34,7 +34,12 @@ def checkVersionmatch(v_query, v_config, match_subversion=True, match_unversione
     if not v_query or (match_unversioned and not v_config):
         return True
 
-    v_config = v_config or [None]
+    # remove trailing '.0's
+    if v_config:
+        while v_config[0].endswith('.0'):
+            v_config[0] = v_config[0][:-2]
+    else:
+        v_config = [None]
 
     # Cases 1, 2 did not apply, so check for case 3: main version need to match
     if v_query[0] != v_config[0]:
@@ -58,13 +63,18 @@ def getCVEsForLib(lib,
     if req.status_code != 200:
         raise Exception('Cannot fetch CVE details for %s' % lib)
 
-    vs = None if not version else version.split('-')
+    vs = None if not version else version.lower().split('-')
+
+    # remove trailing '.0's
+    if vs:
+        while vs[0].endswith('.0'):
+            vs[0] = vs[0][:-2]
 
     cves = []
     json = req.json()
     for cve in json['data']:
         for conf in cve['vulnerable_configuration']:
-            v = conf.split(':')
+            v = conf.lower().split(':')
             if len(v) < 5:
                 # invalid configuration not containing a software name
                 continue
@@ -910,14 +920,14 @@ def process(args):
     # step 1: fetch known CVEs for the library
     if args.library:
         print('Fetch CVEs..')
-        cves = getCVEsForLib(args.library,
-                             version=args.version,
+        cves = getCVEsForLib(args.library.lower(),
+                             version=args.version.lower(),
                              match_subversion=not args.no_match_subversion,
                              match_unversioned=args.match_unversioned)
         cves = sorted(set(map(itemgetter(0), cves)))
 
     if args.cve:
-        cves = [args.cve]
+        cves = [args.cve.upper()]
 
     if args.extract_cves:
         printOrWrite(args, 'CVEs:', cves)
