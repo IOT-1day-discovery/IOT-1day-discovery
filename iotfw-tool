@@ -1,6 +1,7 @@
-#!/usr/bin/python3
+#!/usr/bin/env python3
 import argparse
 import datetime
+import hashlib
 import itertools
 import pathlib
 import re
@@ -106,9 +107,10 @@ def updateMd5(filePath, args, d):
     Returns:
     False if d should not be emitted, True otherwise.
     """
-    return updateSubprocessOutput('md5/hash',
-                                  ['md5sum', '--binary', str(filePath)],
-                                  RE_MD5, args, d)
+    with open(filePath, 'rb') as f:
+        bs = f.read()
+        d['md5/hash'] = hashlib.md5(bs).hexdigest()
+    return True
 
 # Regular expression used to extract the hash from the output of
 # `sha1sum'.
@@ -123,9 +125,10 @@ def updateSha1(filePath, args, d):
     args - additional user-supplied arguments
     d - the info dictionary to update
     """
-    return updateSubprocessOutput('sha1/hash',
-                                  ['sha1sum', '--binary', str(filePath)],
-                                  RE_SHA1, args, d)
+    with open(filePath, 'rb') as f:
+        bs = f.read()
+        d['sha1/hash'] = hashlib.sha1(bs).hexdigest()
+    return True
 
 # Regular expression used to extract the hash from the output of
 # `sha256sum'.
@@ -140,9 +143,10 @@ def updateSha256(filePath, args, d):
     args - additional user-supplied arguments
     d - the info dictionary to update
     """
-    return updateSubprocessOutput('sha256/hash',
-                                  ['sha256sum', '--binary', str(filePath)],
-                                  RE_SHA256, args, d)
+    with open(filePath, 'rb') as f:
+        bs = f.read()
+        d['sha256/hash'] = hashlib.sha256(bs).hexdigest()
+    return True
 
 def mkElfinfoRegexp():
     """
