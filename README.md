@@ -387,3 +387,47 @@ curl -X GET \
     "Description":  "OpenSSH client."
 }
 ```
+
+## lib2vuln tool
+
+This tool can take in a CVE number or software name and version and finds CVE's associated with it, links to patches, the patches themselves and vulnerable functions. 
+```
+usage: lib2vuln.py [-h] [--cve CVE] [--library LIBRARY] [--version VERSION]
+                   [--no-match-subversion] [--match-unversioned]
+                   [--output OUTPUT]
+                   [--extract-references | --extract-patch-urls | --extract-patches | --extract-cves]
+
+Obtain patches/vulnerable from a CVE identifier or for a specific library
+
+optional arguments:
+  -h, --help            show this help message and exit
+  --extract-references, -er
+                        Retrieve URLs referenced by CVE(s) only
+  --extract-patch-urls, -eu
+                        Retrieve potential patch URLs only
+  --extract-patches, -ep
+                        Retrieve patches only, do not extract vulnerable
+                        functions
+  --extract-cves, -ec   Retrieve CVEs only
+
+Output options:
+  --cve CVE, -c CVE     Fetch information about an CVE identifier
+                        (CVE-2018-...)
+  --library LIBRARY, -l LIBRARY
+                        Fetch information for a library
+  --version VERSION, -v VERSION
+                        Fetch information for a specific version of a library
+
+Version matching options:
+  --no-match-subversion
+                        Do not match the subversion string when matching the
+                        vulnerable configuration of CVEs with the queried
+                        librarie's version
+  --match-unversioned   If no version is reported for a vulnerable
+                        configuration of a CVE, match the configuration anyway
+                        (might produce false positives)
+
+Output options:
+  --output OUTPUT, -o OUTPUT
+                        Output file in which to store the output (JSON format)
+```
