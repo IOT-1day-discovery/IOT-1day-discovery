@@ -1,10 +1,13 @@
-# IOT-1day-discovery
+# IoT 1day discovery
 
-## dependencies
+## Dependencies
 - mongodb
 - .net47 (using mono but any 47 will do)
 - node 10.12 or above
-- Python3
+- python3 (tested with python 3.7 and python 3.4)
+- python3 packages:
+  - beautifulsoup4
+  - libclang
 
 ## Initialize Submodule
 Follow the [Git Book](https://git-scm.com/book/en/v2/Git-Tools-Submodules#_cloning_submodules) by Scott Chacon and Ben Straub, on how to initilize the submodule:
@@ -13,6 +16,9 @@ cd ./packageparserweb
 git submodule init
 git submodule update
 ```
+
+Python dependencies can be installed with pip: `pip install -r requirements.txt`.
+However, `libclang` cannot be installed via pip since it is not managed in its repositories. In our experience, `libclang` is installed with clang/llvm. In order to be able to use the python interface for `libclang`, the python's libclang (clang.index) must accessible via `PYTHONPATH` and the C library has to reside within the `LD_LIBRARY_PATH`
 
 ## iotfw-tool
 `iotfw-tool` is the tool used to crawl and extract information about files in unpacked firmware images. List of available actions with basic description can be obtained by running:
@@ -386,4 +392,48 @@ curl -X GET \
     "SHA256sum": "da7cde828734b6b53d618a23185151b1b44b188c00a0269227736b6c4b183cdd",
     "Description":  "OpenSSH client."
 }
+```
+
+## lib2vuln tool
+
+This tool can take in a CVE number or software name and version and finds CVE's associated with it, links to patches, the patches themselves and vulnerable functions. 
+```
+usage: lib2vuln.py [-h] [--cve CVE] [--library LIBRARY] [--version VERSION]
+                   [--no-match-subversion] [--match-unversioned]
+                   [--output OUTPUT]
+                   [--extract-references | --extract-patch-urls | --extract-patches | --extract-cves]
+
+Obtain patches/vulnerable from a CVE identifier or for a specific library
+
+optional arguments:
+  -h, --help            show this help message and exit
+  --extract-references, -er
+                        Retrieve URLs referenced by CVE(s) only
+  --extract-patch-urls, -eu
+                        Retrieve potential patch URLs only
+  --extract-patches, -ep
+                        Retrieve patches only, do not extract vulnerable
+                        functions
+  --extract-cves, -ec   Retrieve CVEs only
+
+Output options:
+  --cve CVE, -c CVE     Fetch information about an CVE identifier
+                        (CVE-2018-...)
+  --library LIBRARY, -l LIBRARY
+                        Fetch information for a library
+  --version VERSION, -v VERSION
+                        Fetch information for a specific version of a library
+
+Version matching options:
+  --no-match-subversion
+                        Do not match the subversion string when matching the
+                        vulnerable configuration of CVEs with the queried
+                        librarie's version
+  --match-unversioned   If no version is reported for a vulnerable
+                        configuration of a CVE, match the configuration anyway
+                        (might produce false positives)
+
+Output options:
+  --output OUTPUT, -o OUTPUT
+                        Output file in which to store the output (JSON format)
 ```
