@@ -399,7 +399,7 @@ curl -X GET \
     "Description":  "OpenSSH client."
 }
 ```
-#### GET package/match/{fileSysyemKey}
+#### GET match/{fileSysyemKey}
 - note this function doesn't scale. You should do matches offline. (for demo use only)
 - [x] fetches the file sysyem to get all binaries and then iterates through that list to find a package match
 -example
