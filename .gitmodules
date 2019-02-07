@@ -1,3 +1,3 @@
 [submodule "packageparserweb"]
 	path = packageparserweb
-	url = git@github.gatech.edu:flotfi3/packageparserweb.git
+	url = git@github.com:IOT-1day-discovery/packageparserweb.git
